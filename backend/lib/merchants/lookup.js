@@ -61,7 +61,15 @@ function getCategoryForMerchant(merchantName) {
     return { category: mergedDictionary[upiPart], confidence: 0.90 };
   }
 
-  // 3. Fuzzy search
+  // 3. Substring match: "zomato private l" or "zomato pvt ltd" -> match "zomato"
+  const keys = Object.keys(mergedDictionary).sort((a, b) => b.length - a.length); // longest first
+  for (const key of keys) {
+    if (key.length >= 3 && normalized.includes(key)) {
+      return { category: mergedDictionary[key], confidence: 0.90 };
+    }
+  }
+
+  // 4. Fuzzy search
   const results = fuse.search(normalized);
   if (results.length > 0 && results[0].score < 0.5) {
     const { item, score } = results[0];
