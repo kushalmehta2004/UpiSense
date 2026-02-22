@@ -53,6 +53,11 @@ export const groups = {
   list: () => api.get('/api/groups'),
   get: (id) => api.get(`/api/groups/${id}`),
   summary: () => api.get('/api/groups/summary'),
+  create: (name) => api.post('/api/groups', { name }),
+  update: (id, name) => api.patch(`/api/groups/${id}`, { name }),
+  delete: (id) => api.delete(`/api/groups/${id}`),
+  addMember: (groupId, phone) => api.post(`/api/groups/${groupId}/members`, { phone }),
+  removeMember: (groupId, memberId) => api.delete(`/api/groups/${groupId}/members/${memberId}`),
 };
 
 export const budgets = {

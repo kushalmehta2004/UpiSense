@@ -4,7 +4,15 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { listGroupsForUser } = require('../lib/groups/groupService.js');
+const {
+  listGroupsForUser,
+  createGroupFromDashboard,
+  addMemberToGroup,
+  deleteGroup,
+  updateGroupName,
+  removeMemberFromGroup,
+  getGroupMembers,
+} = require('../lib/groups/groupService.js');
 const { getBalanceForUser } = require('../lib/expenses/expenseService.js');
 const { listBudgets, getSpendThisMonth } = require('../lib/budget/budgetService.js');
 const { getFamilySpendingThisMonth } = require('../lib/family/familyService.js');
@@ -28,6 +36,27 @@ const plugin = async (fastify) => {
       return reply.send({ success: true, groups });
     } catch (error) {
       console.error('❌ Groups list error:', error.message);
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * POST /api/groups
+   * Create a new group. Body: { name: string }
+   */
+  fastify.post('/api/groups', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { name } = request.body || {};
+      if (!name || !String(name).trim()) {
+        return reply.code(400).send({ error: 'Group name is required' });
+      }
+      const group = await createGroupFromDashboard(supabase, userId, String(name).trim());
+      return reply.send({ success: true, group });
+    } catch (error) {
+      console.error('❌ Create group error:', error.message);
       return reply.code(500).send({ error: error.message || 'Server error' });
     }
   });
@@ -77,12 +106,12 @@ const plugin = async (fastify) => {
       const { userId } = request.user;
       const { id: groupId } = request.params;
 
-      const { data: group, error: gErr } = await supabase
+      const { data: groupRow, error: gErr } = await supabase
         .from('expense_groups')
-        .select('id, name, currency')
+        .select('id, name, currency, created_by_user_id')
         .eq('id', groupId)
         .single();
-      if (gErr || !group) return reply.code(404).send({ error: 'Group not found' });
+      if (gErr || !groupRow) return reply.code(404).send({ error: 'Group not found' });
 
       const { data: membership } = await supabase
         .from('group_members')
@@ -91,6 +120,10 @@ const plugin = async (fastify) => {
         .eq('user_id', userId)
         .maybeSingle();
       if (!membership) return reply.code(403).send({ error: 'Not a member of this group' });
+
+      const isCreator = groupRow.created_by_user_id === userId;
+      const group = { id: groupRow.id, name: groupRow.name, currency: groupRow.currency, isCreator };
+      const members = await getGroupMembers(supabase, groupId);
 
       const { youOwe, owedToYou } = await getBalanceForUser(supabase, groupId, userId);
       const userIds = [...youOwe.map(o => o.userId), ...owedToYou.map(o => o.userId)];
@@ -123,12 +156,104 @@ const plugin = async (fastify) => {
       return reply.send({
         success: true,
         group,
+        members,
         youOwe: youOweWithNames,
         owedToYou: owedToYouWithNames,
         expenses: expensesWithPayer
       });
     } catch (error) {
       console.error('❌ Group detail error:', error.message);
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * PATCH /api/groups/:id
+   * Update group name. Body: { name: string }. Creator only.
+   */
+  fastify.patch('/api/groups/:id', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { id: groupId } = request.params;
+      const { name } = request.body || {};
+      if (!name || !String(name).trim()) {
+        return reply.code(400).send({ error: 'Group name is required' });
+      }
+      await updateGroupName(supabase, groupId, userId, String(name).trim());
+      return reply.send({ success: true });
+    } catch (error) {
+      if (error.message?.includes('Only the group creator')) return reply.code(403).send({ error: error.message });
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * DELETE /api/groups/:id
+   * Delete group. Creator only.
+   */
+  fastify.delete('/api/groups/:id', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { id: groupId } = request.params;
+      await deleteGroup(supabase, groupId, userId);
+      return reply.send({ success: true });
+    } catch (error) {
+      if (error.message?.includes('Only the group creator')) return reply.code(403).send({ error: error.message });
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * POST /api/groups/:id/members
+   * Add member. Body: { phone: string } (10+ digits)
+   */
+  fastify.post('/api/groups/:id/members', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { id: groupId } = request.params;
+      const { phone } = request.body || {};
+      const digits = String(phone || '').replace(/\D/g, '');
+      if (digits.length < 10) {
+        return reply.code(400).send({ error: 'Valid phone number (10+ digits) is required' });
+      }
+      const { data: membership } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!membership) return reply.code(403).send({ error: 'Not a member of this group' });
+      await addMemberToGroup(supabase, groupId, digits, userId);
+      const members = await getGroupMembers(supabase, groupId);
+      return reply.send({ success: true, members });
+    } catch (error) {
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * DELETE /api/groups/:id/members/:memberId
+   * Remove member (group_members.id). Creator can remove anyone; member can remove themselves.
+   */
+  fastify.delete('/api/groups/:id/members/:memberId', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { id: groupId, memberId } = request.params;
+      await removeMemberFromGroup(supabase, groupId, memberId, userId);
+      const members = await getGroupMembers(supabase, groupId);
+      return reply.send({ success: true, members });
+    } catch (error) {
+      if (error.message?.includes('Only the creator') || error.message?.includes('Member not found')) {
+        return reply.code(403).send({ error: error.message });
+      }
       return reply.code(500).send({ error: error.message || 'Server error' });
     }
   });
