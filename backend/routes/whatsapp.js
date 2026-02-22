@@ -262,6 +262,16 @@ const plugin = async (fastify, options) => {
           } catch (err) {
             console.error('❌ Confirm message send failed:', err.message);
           }
+        } else {
+          // Success: send acknowledgement so user knows it was recorded
+          const merchant = parsed.merchant || parsed.upi_id || 'Unknown';
+          const msg = `✅ Recorded: ₹${parsed.amount} to *${merchant}* (${assignedCategory})`;
+          try {
+            await sendWhatsAppText(senderId, msg);
+            console.log('📤 Sent transaction acknowledgement');
+          } catch (err) {
+            console.error('❌ Acknowledgement send failed:', err.message);
+          }
         }
 
         return reply.send({ success: true, parsed: true, txnId: txn.id });
