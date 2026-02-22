@@ -1,7 +1,3 @@
-/**
- * Entry: local server (node index.js) or Vercel serverless (exported handler)
- */
-
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -22,10 +18,21 @@ function getApp() {
   return appPromise;
 }
 
-/**
- * Vercel serverless handler: one handler for all routes (GET webhook verify, POST webhook, etc.)
- */
+const CORS_ORIGIN = 'https://upi-sense.vercel.app';
+
 async function handler(req, res) {
+  // ✅ Set CORS headers on every response
+  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // ✅ Handle preflight requests immediately
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   const app = await getApp();
   const url = req.url || '/';
   const method = req.method || 'GET';
@@ -56,11 +63,9 @@ async function handler(req, res) {
   res.end(response.rawPayload && response.rawPayload.length > 0 ? response.rawPayload : response.payload);
 }
 
-// When running on Vercel, export the handler
 if (process.env.VERCEL === '1') {
   module.exports = handler;
 } else {
-  // Local: start HTTP server
   const start = async () => {
     try {
       const app = await buildApp();
