@@ -7,6 +7,8 @@ const { P2P_CLARIFICATION_OPTIONS } = require('../categories/defaults.js');
 const { sendWhatsAppText } = require('./sendMessage.js');
 const { saveToMerchantMemory } = require('../categorization/categorizeTransaction.js');
 
+const OTHER_OPTION_INDEX = 6; // "Other" is option 6
+
 /**
  * Build clarification message text
  */
@@ -65,10 +67,22 @@ function getCategoryForOptionIndex(index) {
 }
 
 /**
- * Handle clarification reply: save to merchant_memory, update transaction, clear pending
+ * Handle clarification reply: save to merchant_memory, update transaction, clear pending.
+ * If choice is "Other" (6), asks for a note instead of finishing.
+ * @returns {{ done: boolean, category?: string, askedForNote?: boolean }}
  */
 async function handleClarificationReply(supabase, userId, choiceIndex, pendingRow) {
   const category = getCategoryForOptionIndex(choiceIndex);
+
+  // "Other" → ask for note, don't finish yet
+  if (choiceIndex === OTHER_OPTION_INDEX) {
+    await supabase
+      .from('pending_clarifications')
+      .update({ awaiting_note: true })
+      .eq('user_id', userId);
+    return { done: false, askedForNote: true };
+  }
+
   await saveToMerchantMemory(supabase, {
     user_id: userId,
     upi_id: pendingRow.upi_id,
@@ -87,7 +101,40 @@ async function handleClarificationReply(supabase, userId, choiceIndex, pendingRo
     .delete()
     .eq('user_id', userId);
 
-  return category;
+  return { done: true, category };
+}
+
+/**
+ * Handle note reply (when user selected "Other" and sent their note)
+ */
+async function handleNoteReply(supabase, userId, noteText, pendingRow) {
+  const note = (noteText || '').trim().slice(0, 500) || null;
+  const category = 'Other';
+
+  await saveToMerchantMemory(supabase, {
+    user_id: userId,
+    upi_id: pendingRow.upi_id,
+    merchant_name: pendingRow.merchant_name,
+    category,
+    is_p2p: true
+  });
+
+  await supabase
+    .from('transactions')
+    .update({ category, notes: note })
+    .eq('id', pendingRow.transaction_id);
+
+  await supabase
+    .from('pending_clarifications')
+    .delete()
+    .eq('user_id', userId);
+
+  return { category, note };
+}
+
+/** Message to send when asking for note (after user selects Other) */
+function getAskForNoteMessage() {
+  return 'Add a note to remember what this was for (e.g. concert ticket, dinner):';
 }
 
 module.exports = {
@@ -96,5 +143,7 @@ module.exports = {
   parseClarificationReply,
   getCategoryForOptionIndex,
   handleClarificationReply,
+  handleNoteReply,
+  getAskForNoteMessage,
   P2P_OPTIONS_COUNT: P2P_CLARIFICATION_OPTIONS.length
 };

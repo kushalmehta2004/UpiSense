@@ -25,7 +25,7 @@ const plugin = async (fastify) => {
 
       let query = supabase
         .from('transactions')
-        .select('id, amount, merchant_name, category, source_app, timestamp, created_at', { count: 'exact' })
+        .select('id, amount, merchant_name, category, notes, source_app, timestamp, created_at', { count: 'exact' })
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -39,7 +39,8 @@ const plugin = async (fastify) => {
         query = query.lte('timestamp', `${to}T23:59:59`);
       }
       if (search && search.trim()) {
-        query = query.or(`merchant_name.ilike.%${search.trim()}%,category.ilike.%${search.trim()}%`);
+        const term = `%${search.trim()}%`;
+        query = query.or(`merchant_name.ilike.${term},category.ilike.${term},notes.ilike.${term}`);
       }
 
       const pageNum = Math.max(1, parseInt(page, 10) || 1);

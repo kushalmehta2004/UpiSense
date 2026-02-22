@@ -7,7 +7,9 @@ const { seedCategories } = require('../lib/categories/seedCategories.js');
 const {
   sendClarificationAndSavePending,
   parseClarificationReply,
-  handleClarificationReply
+  handleClarificationReply,
+  handleNoteReply,
+  getAskForNoteMessage
 } = require('../lib/whatsapp/clarificationFlow.js');
 const { sendWhatsAppText } = require('../lib/whatsapp/sendMessage.js');
 const { getFinalConfidence } = require('../lib/categorization/confidence.js');
@@ -112,30 +114,46 @@ const plugin = async (fastify, options) => {
       console.log(`   Text: ${text}`);
       console.log(`   Timestamp: ${new Date(timestamp * 1000).toISOString()}`);
 
-      // Task 5: Check for P2P clarification reply (e.g. "1" or "2")
-      const choice = parseClarificationReply(text);
-      if (choice !== null) {
-        const variants = getPhoneVariants(senderId);
-        let clarificationUser = null;
-        for (const v of variants) {
-          const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
-          if (u?.[0]) { clarificationUser = u[0]; break; }
-          const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
-          if (u2?.[0]) { clarificationUser = u2[0]; break; }
+      // Resolve user from senderId
+      const variants = getPhoneVariants(senderId);
+      let msgUser = null;
+      for (const v of variants) {
+        const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+        if (u?.[0]) { msgUser = u[0]; break; }
+        const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+        if (u2?.[0]) { msgUser = u2[0]; break; }
+      }
+
+      if (msgUser) {
+        const { data: pending } = await supabase
+          .from('pending_clarifications')
+          .select('transaction_id, merchant_name, upi_id, awaiting_note')
+          .eq('user_id', msgUser.id)
+          .maybeSingle();
+
+        // 1. Awaiting note (user selected "Other" and we asked for a note)
+        if (pending?.awaiting_note) {
+          const { category, note } = await handleNoteReply(supabase, msgUser.id, text, pending);
+          const confirm = note
+            ? `✅ Saved as *${category}* with note: "${note}". Future payments to this person will use Other.`
+            : `✅ Saved as *${category}*. Future payments to this person will use Other.`;
+          await sendWhatsAppText(senderId, confirm);
+          console.log(`📥 Note received: "${note}" for transaction ${pending.transaction_id}`);
+          return reply.send({ success: true });
         }
-        if (clarificationUser) {
-          const user = clarificationUser;
-          const { data: pending } = await supabase
-            .from('pending_clarifications')
-            .select('transaction_id, merchant_name, upi_id')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          if (pending) {
-            const category = await handleClarificationReply(supabase, user.id, choice, pending);
-            await sendWhatsAppText(senderId, `✅ Saved as *${category}*. Future payments to this person will use this category.`);
-            console.log(`📥 Clarification: user chose ${choice} → ${category}`);
-            return reply.send({ success: true });
+
+        // 2. Clarification reply (1–6)
+        const choice = parseClarificationReply(text);
+        if (choice !== null && pending) {
+          const result = await handleClarificationReply(supabase, msgUser.id, choice, pending);
+          if (result.askedForNote) {
+            await sendWhatsAppText(senderId, getAskForNoteMessage());
+            console.log('📤 Asked user for note (Other selected)');
+          } else {
+            await sendWhatsAppText(senderId, `✅ Saved as *${result.category}*. Future payments to this person will use this category.`);
+            console.log(`📥 Clarification: user chose ${choice} → ${result.category}`);
           }
+          return reply.send({ success: true });
         }
       }
 

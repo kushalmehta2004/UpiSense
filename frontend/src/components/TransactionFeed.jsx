@@ -18,11 +18,14 @@ function TransactionItem({ txn }) {
   return (
     <div
       key={txn.id}
-      className="flex justify-between items-center p-4 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
+      className="flex justify-between items-start p-4 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
     >
       <div>
         <p className="font-semibold text-slate-800">{txn.merchant_name || 'Unknown'}</p>
         <p className="text-sm text-slate-500">{txn.category || 'Uncategorized'}</p>
+        {txn.notes && (
+          <p className="text-sm text-slate-600 mt-0.5 italic">&quot;{txn.notes}&quot;</p>
+        )}
         {date && (
           <p className="text-xs text-slate-400 mt-0.5">
             {format(new Date(date), 'MMM d, yyyy · h:mm a')}
@@ -81,7 +84,7 @@ export function TransactionFeed({ compact = false }) {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search merchant or category..."
+            placeholder="Search merchant, category or notes..."
             className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#00a651] focus:border-transparent outline-none"
           />
           <button
