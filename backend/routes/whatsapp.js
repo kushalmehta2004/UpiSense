@@ -12,9 +12,58 @@ const {
   getAskForNoteMessage
 } = require('../lib/whatsapp/clarificationFlow.js');
 const { sendWhatsAppText } = require('../lib/whatsapp/sendMessage.js');
+const { getHelpMessage } = require('../lib/whatsapp/helpMessage.js');
 const { getFinalConfidence } = require('../lib/categorization/confidence.js');
 const { logParseFailure, logError, getParseFailureSummary } = require('../lib/logger.js');
 const { getPhoneVariants, normalizeForWhatsApp } = require('../lib/phoneUtils.js');
+const {
+  parseBudgetCommand,
+  setBudget,
+  getBudgetAlertAfterTransaction
+} = require('../lib/budget/budgetService.js');
+const {
+  parseReportCommand,
+  getSpendingByCategory,
+  formatReportMessage
+} = require('../lib/report/reportService.js');
+const {
+  parseCreateGroupCommand,
+  parseAddToGroupCommand,
+  createGroup,
+  findGroupByName,
+  addMemberToGroup,
+  listGroupsForUser
+} = require('../lib/groups/groupService.js');
+const {
+  parseAddExpenseCommand,
+  addExpense,
+  getBalanceForUser,
+  formatBalanceMessage,
+  parseBalanceCommand,
+  settleUp,
+  parseSettleCommand,
+  resolveSettleToUser
+} = require('../lib/expenses/expenseService.js');
+const { parseReceiptFromWhatsAppMedia } = require('../lib/receipt/receiptParser.js');
+const {
+  addToFamily,
+  getFamilySpendingThisMonth,
+  formatFamilySummaryMessage,
+  parseAddToFamilyCommand
+} = require('../lib/family/familyService.js');
+const {
+  parseRequestMoneyCommand,
+  findUserByPhone
+} = require('../lib/requestMoney/requestMoneyService.js');
+const {
+  findSimilarRecentTransaction,
+  setPendingRecurringSuggestion,
+  handleRecurringYes
+} = require('../lib/recurring/recurringService.js');
+const {
+  setPendingSplit,
+  handleSplitReply
+} = require('../lib/splitTransaction/splitTransactionService.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -102,6 +151,74 @@ const plugin = async (fastify, options) => {
       const messageId = message.id;
       const timestamp = message.timestamp;
       const text = message.text?.body;
+      const image = message.image;
+
+      // Tier 1: Receipt/screenshot – image without text: parse and record as transaction
+      if (!text && image?.id) {
+        console.log('📷 Image received (receipt/screenshot)');
+        try {
+          const receipt = await parseReceiptFromWhatsAppMedia(image.id, image.mime_type || 'image/jpeg');
+          if (receipt) {
+            const variants = getPhoneVariants(senderId);
+            let userId = null;
+            for (const v of variants) {
+              const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+              if (u?.[0]) { userId = u[0].id; break; }
+              const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+              if (u2?.[0]) { userId = u2[0].id; break; }
+            }
+            let justCreatedUser = false;
+            if (!userId) {
+              const canonicalPhone = normalizeForWhatsApp(senderId);
+              const { data: newUser } = await supabase.from('users').insert([{
+                whatsapp_number: canonicalPhone,
+                phone: canonicalPhone,
+                name: `User_${canonicalPhone.slice(-4)}`,
+                plan: 'free'
+              }]).select('id').single();
+              if (newUser) {
+                userId = newUser.id;
+                justCreatedUser = true;
+              }
+            }
+            if (userId) {
+              const { category } = await categorizeTransaction(
+                { merchant: receipt.merchant, upi_id: receipt.merchant, is_p2p: false },
+                userId,
+                supabase
+              );
+              const txnTimestamp = receipt.date ? `${receipt.date}T12:00:00.000Z` : new Date(timestamp * 1000).toISOString();
+              const { data: txn } = await supabase.from('transactions').insert([{
+                user_id: userId,
+                amount: receipt.amount,
+                merchant_name: receipt.merchant,
+                upi_id: receipt.merchant,
+                category: category || 'Other',
+                source_app: 'receipt_parsed',
+                parse_method: 'receipt_image',
+                confidence: 0.85,
+                timestamp: txnTimestamp
+              }]).select('id').single();
+              if (txn) {
+                await sendWhatsAppText(senderId, `✅ Recorded from receipt: ₹${receipt.amount.toLocaleString('en-IN')} to *${receipt.merchant}* (${category || 'Other'})`);
+                const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, category || 'Other', receipt.amount);
+                if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
+                if (justCreatedUser) {
+                  try { await sendWhatsAppText(senderId, getHelpMessage()); } catch (e) { /* ignore */ }
+                }
+              }
+            } else {
+              await sendWhatsAppText(senderId, 'Could not create user. Please try again.');
+            }
+          } else {
+            await sendWhatsAppText(senderId, 'Could not read amount from the image. Send a clearer receipt or type the transaction.');
+          }
+        } catch (err) {
+          console.error('Receipt handling error:', err.message);
+          await sendWhatsAppText(senderId, 'Something went wrong reading your receipt. Try again or send the transaction as text.');
+        }
+        return reply.send({ success: true });
+      }
 
       if (!text) {
         console.log('⚠️  No text content in message');
@@ -152,6 +269,215 @@ const plugin = async (fastify, options) => {
           } else {
             await sendWhatsAppText(senderId, `✅ Saved as *${result.category}*. Future payments to this person will use this category.`);
             console.log(`📥 Clarification: user chose ${choice} → ${result.category}`);
+          }
+          return reply.send({ success: true });
+        }
+      }
+
+      // ----- Tier 1: WhatsApp commands (need user; create if command from new user) -----
+      const variants = getPhoneVariants(senderId);
+      let cmdUser = null;
+      for (const v of variants) {
+        const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+        if (u?.[0]) { cmdUser = u[0]; break; }
+        const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+        if (u2?.[0]) { cmdUser = u2[0]; break; }
+      }
+      const isBudgetCmd = /^(?:set\s+)?budget\s+.+\s+[\d,]+\.?\d*$/i.test(text.trim());
+      const isReportCmd = /^(?:monthly\s+)?(?:report|summary)\s*\S*$/i.test(text.trim()) || /^(report|summary)$/i.test(text.trim());
+      const isGroupCmd = /^(?:create|new)\s+group\s+.+$/i.test(text.trim()) || /^add\s+.+\s+to\s+.+$/i.test(text.trim()) || /^groups$/i.test(text.trim());
+      const isExpenseCmd = /^expense\s+\d+.+in\s+.+$/i.test(text.trim()) || /^balance\s+(?:in\s+)?.+$/i.test(text.trim()) || /^settle(?:\s+up)?\s+\d+.+$/i.test(text.trim());
+      const isFamilyCmd = /^add\s+(?:to\s+)?family\s+\d+$/i.test(text.trim()) || /^add\s+\d+\s+to\s+family$/i.test(text.trim()) || /^family\s+summary$/i.test(text.trim());
+      const isRequestCmd = /^request\s+[\d,.]+\s+from\s+\d+$/i.test(text.trim()) || /^remind\s+.+\s+about\s+[\d,.]+\s*$/i.test(text.trim());
+      const isHelpCmd = /^(help|menu|commands|start|what can you do|hi|hello)$/i.test(text.trim());
+      if (!cmdUser && (isBudgetCmd || isReportCmd || isGroupCmd || isExpenseCmd || isFamilyCmd || isRequestCmd || isHelpCmd)) {
+        const canonicalPhone = normalizeForWhatsApp(senderId);
+        const { data: newU, error } = await supabase.from('users').insert([{
+          whatsapp_number: canonicalPhone,
+          phone: canonicalPhone,
+          name: `User_${canonicalPhone.slice(-4)}`,
+          plan: 'free'
+        }]).select('id').single();
+        if (!error && newU) cmdUser = newU;
+      }
+      if (cmdUser) {
+        const trimmedLower = text.trim().toLowerCase();
+        if (isHelpCmd) {
+          await sendWhatsAppText(senderId, getHelpMessage());
+          return reply.send({ success: true });
+        }
+        const { data: pendingRecurring } = await supabase.from('pending_recurring_suggestion').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
+        if (pendingRecurring && (trimmedLower === 'yes' || trimmedLower === 'y')) {
+          const ok = await handleRecurringYes(supabase, cmdUser.id);
+          await sendWhatsAppText(senderId, ok ? '✅ Marked as recurring. We\'ll use this for future insights.' : 'No pending suggestion.');
+          return reply.send({ success: true });
+        }
+        const splitResult = await handleSplitReply(supabase, cmdUser.id, text);
+        if (splitResult.handled) {
+          if (splitResult.error) await sendWhatsAppText(senderId, `❌ ${splitResult.error}`);
+          else if (splitResult.message) await sendWhatsAppText(senderId, splitResult.message);
+          return reply.send({ success: true });
+        }
+        const budgetParsed = parseBudgetCommand(text);
+        if (budgetParsed) {
+          try {
+            await setBudget(supabase, cmdUser.id, budgetParsed.category, budgetParsed.amount);
+            await sendWhatsAppText(senderId, `✅ Budget set: *${budgetParsed.category}* ₹${budgetParsed.amount.toLocaleString('en-IN')}/month. We'll alert you when you approach or exceed it.`);
+          } catch (err) {
+            console.error('Budget set error:', err.message);
+            await sendWhatsAppText(senderId, `❌ Could not set budget: ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const reportOpt = parseReportCommand(text);
+        if (reportOpt) {
+          try {
+            const { byCategory, total, start, end } = await getSpendingByCategory(supabase, cmdUser.id, reportOpt);
+            const msg = formatReportMessage({ byCategory, total, start, end }, reportOpt.type);
+            await sendWhatsAppText(senderId, msg || 'No spending in this period.');
+          } catch (err) {
+            console.error('Report error:', err.message);
+            await sendWhatsAppText(senderId, `❌ Could not generate report: ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const groupName = parseCreateGroupCommand(text);
+        if (groupName) {
+          try {
+            const group = await createGroup(supabase, cmdUser.id, groupName, senderId);
+            await sendWhatsAppText(senderId, `✅ Group *${group.name}* created. Add members: _add 9876543210 to ${group.name}_`);
+          } catch (err) {
+            console.error('Create group error:', err.message);
+            await sendWhatsAppText(senderId, `❌ Could not create group: ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const addTo = parseAddToGroupCommand(text);
+        if (addTo) {
+          try {
+            const group = await findGroupByName(supabase, cmdUser.id, addTo.groupName);
+            if (!group) {
+              await sendWhatsAppText(senderId, `❌ Group "${addTo.groupName}" not found. Reply _groups_ to see your groups.`);
+              return reply.send({ success: true });
+            }
+            await addMemberToGroup(supabase, group.id, addTo.phone, cmdUser.id);
+            await sendWhatsAppText(senderId, `✅ Added ${addTo.phone} to *${group.name}*.`);
+          } catch (err) {
+            console.error('Add to group error:', err.message);
+            await sendWhatsAppText(senderId, `❌ Could not add: ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        if (/^groups$/i.test(text.trim())) {
+          try {
+            const groups = await listGroupsForUser(supabase, cmdUser.id);
+            if (!groups.length) {
+              await sendWhatsAppText(senderId, 'You have no groups yet. Create one: _create group Apartment_');
+              return reply.send({ success: true });
+            }
+            const list = groups.map(g => `• ${g.name}`).join('\n');
+            await sendWhatsAppText(senderId, `📋 *Your groups*\n\n${list}\n\nAdd expense: _expense 500 dinner in Apartment_`);
+          } catch (err) {
+            console.error('List groups error:', err.message);
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const expenseInput = parseAddExpenseCommand(text);
+        if (expenseInput) {
+          try {
+            const group = await findGroupByName(supabase, cmdUser.id, expenseInput.groupName);
+            if (!group) {
+              await sendWhatsAppText(senderId, `❌ Group "${expenseInput.groupName}" not found. Reply _groups_ to see your groups.`);
+              return reply.send({ success: true });
+            }
+            const expenseDate = new Date().toISOString().slice(0, 10);
+            await addExpense(supabase, group.id, cmdUser.id, expenseInput.amount, expenseInput.description, expenseDate);
+            await sendWhatsAppText(senderId, `✅ Added expense: ₹${expenseInput.amount.toLocaleString('en-IN')} – ${expenseInput.description} in *${group.name}* (split equally).`);
+          } catch (err) {
+            console.error('Add expense error:', err.message);
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const balanceGroupName = parseBalanceCommand(text);
+        if (balanceGroupName) {
+          try {
+            const group = await findGroupByName(supabase, cmdUser.id, balanceGroupName);
+            if (!group) {
+              await sendWhatsAppText(senderId, `❌ Group "${balanceGroupName}" not found.`);
+              return reply.send({ success: true });
+            }
+            const { youOwe, owedToYou } = await getBalanceForUser(supabase, group.id, cmdUser.id);
+            const msg = await formatBalanceMessage(supabase, group.name, youOwe, owedToYou, cmdUser.id);
+            await sendWhatsAppText(senderId, msg);
+          } catch (err) {
+            console.error('Balance error:', err.message);
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const settleInput = parseSettleCommand(text);
+        if (settleInput) {
+          try {
+            const group = await findGroupByName(supabase, cmdUser.id, settleInput.groupName);
+            if (!group) {
+              await sendWhatsAppText(senderId, `❌ Group "${settleInput.groupName}" not found.`);
+              return reply.send({ success: true });
+            }
+            const toIdentifier = settleInput.toPhone ?? settleInput.toNameOrPhone;
+            const toUserId = await resolveSettleToUser(supabase, group.id, toIdentifier);
+            if (!toUserId) {
+              await sendWhatsAppText(senderId, `❌ Could not find that member in the group. Use phone number or name.`);
+              return reply.send({ success: true });
+            }
+            await settleUp(supabase, group.id, cmdUser.id, toUserId, settleInput.amount);
+            await sendWhatsAppText(senderId, `✅ Recorded: You paid ₹${settleInput.amount.toLocaleString('en-IN')}. Reply _balance ${group.name}_ to see updated balance.`);
+          } catch (err) {
+            console.error('Settle error:', err.message);
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const addFamilyPhone = parseAddToFamilyCommand(text);
+        if (addFamilyPhone) {
+          try {
+            const result = await addToFamily(supabase, cmdUser.id, addFamilyPhone);
+            if (result.ok) {
+              await sendWhatsAppText(senderId, '✅ Added to family. Use _family summary_ to see combined spending.');
+            } else {
+              await sendWhatsAppText(senderId, `❌ ${result.error}`);
+            }
+          } catch (err) {
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        if (/^family\s+summary$/i.test(text.trim())) {
+          try {
+            const data = await getFamilySpendingThisMonth(supabase, cmdUser.id);
+            const msg = formatFamilySummaryMessage(data);
+            await sendWhatsAppText(senderId, msg);
+          } catch (err) {
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        const requestMoney = parseRequestMoneyCommand(text);
+        if (requestMoney) {
+          try {
+            const requester = await supabase.from('users').select('name, phone').eq('id', cmdUser.id).single().then(r => r.data);
+            const requesterLabel = requester?.name || requester?.phone || 'Someone';
+            const target = await findUserByPhone(supabase, requestMoney.phone);
+            const amountStr = `₹${requestMoney.amount.toLocaleString('en-IN')}`;
+            if (target?.whatsapp_number) {
+              await sendWhatsAppText(target.whatsapp_number, `💬 *UpiSense:* ${requesterLabel} is reminding you: You owe them ${amountStr}.`);
+              await sendWhatsAppText(senderId, `✅ Reminder sent to ${target.name || target.whatsapp_number}.`);
+            } else {
+              await sendWhatsAppText(senderId, `They're not on UpiSense yet. Forward this to them:\n\n_"You owe me ${amountStr}."_`);
+            }
+          } catch (err) {
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
           }
           return reply.send({ success: true });
         }
@@ -211,6 +537,11 @@ const plugin = async (fastify, options) => {
           } else {
             userId = newUser.id;
             console.log(`👤 Created new user: ${userId}`);
+            try {
+              await sendWhatsAppText(senderId, getHelpMessage());
+            } catch (e) {
+              console.error('Welcome/help send failed:', e.message);
+            }
           }
         }
 
@@ -289,6 +620,30 @@ const plugin = async (fastify, options) => {
             console.log('📤 Sent transaction acknowledgement');
           } catch (err) {
             console.error('❌ Acknowledgement send failed:', err.message);
+          }
+          // Tier 1: Budget alert when approaching or exceeding limit
+          try {
+            const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, assignedCategory, parsed.amount);
+            if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
+          } catch (err) {
+            console.error('Budget alert check failed:', err.message);
+          }
+          // Tier 1: Recurring detection – suggest if similar transaction in last 30 days
+          try {
+            const similar = await findSimilarRecentTransaction(supabase, userId, parsed.merchant || parsed.upi_id, parsed.amount);
+            if (similar) {
+              await setPendingRecurringSuggestion(supabase, userId, txn.id);
+              await sendWhatsAppText(senderId, '🔄 Looks like a recurring payment. Reply *yes* to mark as recurring.');
+            }
+          } catch (err) {
+            console.error('Recurring suggestion failed:', err.message);
+          }
+          // Tier 1: Split this transaction – offer to add to a group
+          try {
+            await setPendingSplit(supabase, userId, txn.id);
+            await sendWhatsAppText(senderId, 'Split this? Reply _split GroupName_ to add to a group (e.g. _split Apartment_).');
+          } catch (err) {
+            console.error('Pending split failed:', err.message);
           }
         }
 
