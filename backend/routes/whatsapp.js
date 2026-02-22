@@ -275,7 +275,6 @@ const plugin = async (fastify, options) => {
       }
 
       // ----- Tier 1: WhatsApp commands (need user; create if command from new user) -----
-      const variants = getPhoneVariants(senderId);
       let cmdUser = null;
       for (const v of variants) {
         const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
