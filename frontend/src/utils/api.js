@@ -49,4 +49,22 @@ export const categories = {
   list: () => api.get('/api/categories'),
 };
 
+export const groups = {
+  list: () => api.get('/api/groups'),
+  get: (id) => api.get(`/api/groups/${id}`),
+  summary: () => api.get('/api/groups/summary'),
+};
+
+export const budgets = {
+  list: () => api.get('/api/budgets'),
+};
+
+export const family = {
+  summary: () => api.get('/api/family/summary'),
+};
+
+export const report = {
+  get: (params) => api.get('/api/report', { params }),
+};
+
 export default api;

@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Transactions } from './pages/Transactions';
+import { Groups, GroupDetail } from './pages/Groups';
 import { Settings } from './pages/Settings';
 
 function App() {
@@ -31,6 +32,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Transactions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups"
+          element={
+            <ProtectedRoute>
+              <Groups />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups/:id"
+          element={
+            <ProtectedRoute>
+              <GroupDetail />
             </ProtectedRoute>
           }
         />

@@ -30,6 +30,7 @@ async function buildApp() {
   const whatsappRoutes = require('./routes/whatsapp.js');
   const authRoutes = require('./routes/auth.js');
   const transactionsRoutes = require('./routes/transactions.js');
+  const featuresRoutes = require('./routes/features.js');
 
   app.get('/health', async (request, reply) => {
     return { status: 'ok', timestamp: new Date().toISOString() };
@@ -38,6 +39,7 @@ async function buildApp() {
   await app.register(whatsappRoutes);
   await app.register(authRoutes);
   await app.register(transactionsRoutes);
+  await app.register(featuresRoutes);
 
   return app;
 }
