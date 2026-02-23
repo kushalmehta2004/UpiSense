@@ -83,6 +83,20 @@ const templates = {
     fields: ['amount', 'merchant'],
     sourceApp: 'user',
     confidence: 0.85
+  },
+  // "200 to restaurant" (no "paid") – NLP-friendly
+  user_amount_to: {
+    pattern: /^([\d,]+(?:\s*\.\d{2})?)\s+to\s+(.+)$/i,
+    fields: ['amount', 'merchant'],
+    sourceApp: 'user',
+    confidence: 0.85
+  },
+  // "Paid 200 for dinner at a restaurant"
+  user_paid_for_at: {
+    pattern: /(?:i\s+)?paid\s+([\d,]+(?:\s*\.\d{2})?)\s+for\s+(.+?)\s+at\s+(.+)$/is,
+    fields: ['amount', 'description', 'merchant'],
+    sourceApp: 'user',
+    confidence: 0.88
   }
 };
 

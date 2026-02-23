@@ -36,10 +36,6 @@ const {
   listGroupsForUser
 } = require('../lib/groups/groupService.js');
 const {
-  parseAddExpenseCommand,
-  addExpense,
-  addExpenseWithShares,
-  resolveSharesToUserIds,
   getBalanceForUser,
   formatBalanceMessage,
   parseBalanceCommand,
@@ -47,7 +43,8 @@ const {
   parseSettleCommand,
   resolveSettleToUser
 } = require('../lib/expenses/expenseService.js');
-const { parseExpenseWithLLM } = require('../lib/expenses/expenseLlmParser.js');
+const { shouldHandle: groupsShouldHandle, process: groupsAgentProcess } = require('../lib/agents/groupsAgent.js');
+const { logAgentHandling } = require('../lib/agents/agentRouter.js');
 const { parseReceiptFromWhatsAppMedia } = require('../lib/receipt/receiptParser.js');
 const {
   addToFamily,
@@ -410,52 +407,17 @@ const plugin = async (fastify, options) => {
           }
           return reply.send({ success: true });
         }
-        const expenseInput = parseAddExpenseCommand(text);
-        if (expenseInput) {
-          try {
-            const group = await findGroupByName(supabase, cmdUser.id, expenseInput.groupName);
-            if (!group) {
-              await sendWhatsAppText(senderId, `❌ Group "${expenseInput.groupName}" not found. Reply _groups_ to see your groups.`);
-              return reply.send({ success: true });
-            }
-            const expenseDate = new Date().toISOString().slice(0, 10);
-            await addExpense(supabase, group.id, cmdUser.id, expenseInput.amount, expenseInput.description, expenseDate);
-            await sendWhatsAppText(senderId, `✅ Added expense: ₹${expenseInput.amount.toLocaleString('en-IN')} – ${expenseInput.description} in *${group.name}* (split equally).`);
-          } catch (err) {
-            console.error('Add expense error:', err.message);
-            await sendWhatsAppText(senderId, `❌ ${err.message}`);
-          }
-          return reply.send({ success: true });
-        }
-        const looksLikeExpense = /expense|paid\s+\d|spent\s+\d/i.test(text) && (/in\s+.+/.test(text) || /group\s+\d+/i.test(text) || /owes?|owe\s+\d/i.test(text));
-        if (looksLikeExpense) {
-          try {
-            const llmExpense = await parseExpenseWithLLM(text);
-            if (llmExpense) {
-              const group = await findGroupByName(supabase, cmdUser.id, llmExpense.groupName);
-              if (!group) {
-                await sendWhatsAppText(senderId, `❌ Group "${llmExpense.groupName}" not found. Reply _groups_ to see your groups.`);
-                return reply.send({ success: true });
-              }
-              const expenseDate = new Date().toISOString().slice(0, 10);
-              if (llmExpense.shares && llmExpense.shares.length > 0) {
-                const resolved = await resolveSharesToUserIds(supabase, group.id, cmdUser.id, llmExpense.shares);
-                if (resolved.length > 0) {
-                  await addExpenseWithShares(supabase, group.id, cmdUser.id, llmExpense.amount, llmExpense.description, expenseDate, resolved);
-                  await sendWhatsAppText(senderId, `✅ Added expense: ₹${llmExpense.amount.toLocaleString('en-IN')} – ${llmExpense.description} in *${group.name}* (custom split).`);
-                } else {
-                  await addExpense(supabase, group.id, cmdUser.id, llmExpense.amount, llmExpense.description, expenseDate);
-                  await sendWhatsAppText(senderId, `✅ Added expense: ₹${llmExpense.amount.toLocaleString('en-IN')} – ${llmExpense.description} in *${group.name}* (split equally).`);
-                }
-              } else {
-                await addExpense(supabase, group.id, cmdUser.id, llmExpense.amount, llmExpense.description, expenseDate);
-                await sendWhatsAppText(senderId, `✅ Added expense: ₹${llmExpense.amount.toLocaleString('en-IN')} – ${llmExpense.description} in *${group.name}* (split equally).`);
-              }
-              return reply.send({ success: true });
-            }
-          } catch (err) {
-            console.error('LLM expense parse/add error:', err.message);
-          }
+        // Groups agent: expense/split messages (e.g. "expense 500 to 306 where friend owes 200")
+        if (groupsShouldHandle(text)) {
+          logAgentHandling('Groups', text.trim().slice(0, 60));
+          const handled = await groupsAgentProcess(text, {
+            supabase,
+            userId: cmdUser.id,
+            senderId,
+            sendWhatsAppText,
+            reply
+          });
+          if (handled) return reply.send({ success: true });
         }
         const balanceGroupName = parseBalanceCommand(text);
         if (balanceGroupName) {
@@ -540,10 +502,11 @@ const plugin = async (fastify, options) => {
         }
       }
 
-      // Parse transaction (regex first, LLM fallback)
+      // Transaction agent: parse and record payment (category from memory → dictionary → LLM → default)
       const parsed = await parseTransactionUnified(text);
 
       if (parsed) {
+        logAgentHandling('Transaction', `₹${parsed.amount} to ${(parsed.merchant || parsed.upi_id || '?').slice(0, 40)}`);
         console.log('\n✅ Transaction parsed successfully');
 
         // Get or create user (match both 919372999366 and 9372999366 formats)
@@ -602,12 +565,13 @@ const plugin = async (fastify, options) => {
           }
         }
 
-        // Categorize transaction (merchant_memory → dictionary → pending_clarification → default)
+        // Categorize transaction (merchant_memory → dictionary → LLM inference → P2P clarification → default)
         const { category: assignedCategory, source: categorySource } = await categorizeTransaction(
           {
             merchant: parsed.merchant,
             upi_id: parsed.upi_id,
-            is_p2p: parsed.is_p2p
+            is_p2p: parsed.is_p2p,
+            amount: parsed.amount
           },
           userId,
           supabase
@@ -643,6 +607,7 @@ const plugin = async (fastify, options) => {
 
         console.log(`💾 Stored transaction: ${txn.id}`);
         console.log(`   Amount: ₹${parsed.amount} | Merchant: ${parsed.merchant || parsed.upi_id} | Category: ${assignedCategory} (${categorySource}) | Confidence: ${finalConfidence}`);
+        if (categorySource === 'llm') logAgentHandling('Category', `${assignedCategory} (LLM)`);
 
         // Task 5: If P2P needed clarification, send WhatsApp and save pending
         if (assignedCategory === 'pending_clarification') {

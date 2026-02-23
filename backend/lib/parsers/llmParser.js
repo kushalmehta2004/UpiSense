@@ -45,7 +45,7 @@ Rules:
 - amount_inr: Extract the amount in INR as a number (remove commas, currency symbols)
 - merchant_name: Extract the merchant/recipient name (clean, no extra spaces)
 - upi_id: Extract UPI ID if present (format: name@bank or phone@bank)
-- is_p2p: true if this appears to be a person-to-person payment (not a merchant), false otherwise
+- is_p2p: true ONLY if this is clearly a person (e.g. a friend's name, "mom", "John"). Use false for businesses, places, or common merchant words (restaurant, cafe, pharmacy, supermarket, swiggy, zomato, uber, etc.)
 - ref: Extract transaction reference/UTR/UPI reference number if present
 
 Text: "${text}"

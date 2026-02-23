@@ -46,12 +46,7 @@ async function categorizeTransaction(txn, userId, supabase) {
     }
   }
 
-  // 3. If P2P and unknown: needs clarification (Task 5 will send WhatsApp)
-  if (isP2P) {
-    return { category: 'pending_clarification', source: 'pending_clarification' };
-  }
-
-  // 4. Use Gemini to infer category from merchant/description (e.g. "restaurant" → Food & Dining)
+  // 3. Use Gemini to infer category BEFORE P2P check (so "restaurant" → Food & Dining even if parser said is_p2p)
   try {
     const llmCategory = await inferCategoryWithLLM(merchantName, txn.amount ?? null);
     if (llmCategory) {
@@ -59,6 +54,11 @@ async function categorizeTransaction(txn, userId, supabase) {
     }
   } catch (err) {
     console.error('LLM category inference failed:', err.message);
+  }
+
+  // 4. If P2P and still unknown: needs clarification (Task 5 will send WhatsApp)
+  if (isP2P) {
+    return { category: 'pending_clarification', source: 'pending_clarification' };
   }
 
   // 5. Default for unknown merchants
