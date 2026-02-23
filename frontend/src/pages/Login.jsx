@@ -14,7 +14,7 @@ export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setUser } = useAuthStore();
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSendOtp = async (e) => {
     e.preventDefault();

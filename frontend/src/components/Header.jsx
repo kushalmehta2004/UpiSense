@@ -17,7 +17,7 @@ export function Header() {
   const navClass = 'block py-2 sm:py-0 text-slate-600 hover:text-teal-600 font-medium transition-colors duration-200';
   const navLinks = (
     <>
-      <Link to="/" className={navClass} onClick={() => setMenuOpen(false)}>Dashboard</Link>
+      <Link to="/dashboard" className={navClass} onClick={() => setMenuOpen(false)}>Dashboard</Link>
       <Link to="/transactions" className={navClass} onClick={() => setMenuOpen(false)}>Transactions</Link>
       <Link to="/debts" className={navClass} onClick={() => setMenuOpen(false)}>Debts</Link>
       <Link to="/settings" className={navClass} onClick={() => setMenuOpen(false)}>Settings</Link>
@@ -38,7 +38,7 @@ export function Header() {
     <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-10 shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
-          <Link to="/" className="flex items-center gap-2.5 group">
+          <Link to="/dashboard" className="flex items-center gap-2.5 group">
             <img
               src={logoSrc}
               alt="UpiSense"
