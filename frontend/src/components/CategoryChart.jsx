@@ -51,8 +51,8 @@ export function CategoryChart({ from, to }) {
   return (
     <div className="bg-white rounded-2xl border border-[#e2e8f0] p-4 shadow-sm">
       <h3 className="font-semibold text-[#0f172a] mb-4">Category Breakdown</h3>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="w-full" style={{ height: 256, minHeight: 256 }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <PieChart>
             <Pie
               data={data}

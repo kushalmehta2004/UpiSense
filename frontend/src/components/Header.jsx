@@ -22,7 +22,6 @@ export function Header() {
       <Link to="/settings" className={navClass} onClick={() => setMenuOpen(false)}>Settings</Link>
       {user && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0]">
-          <span className="text-sm text-[#64748b]">{user.name && user.name !== 'User' ? user.name : user.phone}</span>
           <button
             onClick={handleLogout}
             className="text-sm text-[#64748b] hover:text-red-600 transition-colors text-left sm:text-center"

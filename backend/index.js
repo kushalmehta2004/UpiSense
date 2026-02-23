@@ -23,7 +23,7 @@ const CORS_ORIGIN = 'https://upi-sense.vercel.app';
 async function handler(req, res) {
   // ✅ Set CORS headers on every response
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   // ✅ Handle preflight requests immediately

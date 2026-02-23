@@ -37,8 +37,8 @@ export function WeeklyTrend({ days = 7 }) {
   return (
     <div className="bg-white rounded-2xl border border-[#e2e8f0] p-4 shadow-sm">
       <h3 className="font-semibold text-[#0f172a] mb-4">Daily Spend (Last {days} days)</h3>
-      <div className="h-56">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="w-full" style={{ height: 224, minHeight: 224 }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey="label" tick={{ fontSize: 12 }} />
