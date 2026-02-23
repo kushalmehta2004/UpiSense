@@ -51,6 +51,8 @@ const { logAgentHandling } = require('../lib/agents/agentRouter.js');
 const { parseWithUnifiedAgent, shouldTryAgent } = require('../lib/agents/unifiedIntentAgent.js');
 // Groups feature: set ENABLE_GROUPS=true in .env to re-enable
 const ENABLE_GROUPS = process.env.ENABLE_GROUPS === 'true';
+// Family feature: set ENABLE_FAMILY=true in .env to re-enable
+const ENABLE_FAMILY = process.env.ENABLE_FAMILY === 'true';
 const { parseReceiptFromWhatsAppMedia } = require('../lib/receipt/receiptParser.js');
 const {
   addToFamily,
@@ -293,7 +295,7 @@ const plugin = async (fastify, options) => {
       const isReportCmd = /^(?:monthly\s+)?(?:report|summary)\s*\S*$/i.test(text.trim()) || /^(report|summary)$/i.test(text.trim());
       const isGroupCmd = ENABLE_GROUPS && (/^(?:create|new)\s+group\s+.+$/i.test(text.trim()) || /^add\s+.+\s+to\s+.+$/i.test(text.trim()) || /^groups$/i.test(text.trim()));
       const isExpenseCmd = ENABLE_GROUPS && (/^expense\s+\d+.+in\s+.+$/i.test(text.trim()) || /^balance\s+(?:in\s+)?.+$/i.test(text.trim()) || /^settle(?:\s+up)?\s+\d+.+$/i.test(text.trim()));
-      const isFamilyCmd = /^add\s+(?:to\s+)?family\s+\d+$/i.test(text.trim()) || /^add\s+\d+\s+to\s+family$/i.test(text.trim()) || /^family\s+summary$/i.test(text.trim());
+      const isFamilyCmd = ENABLE_FAMILY && (/^add\s+(?:to\s+)?family\s+\d+$/i.test(text.trim()) || /^add\s+\d+\s+to\s+family$/i.test(text.trim()) || /^family\s+summary$/i.test(text.trim()));
       const isRequestCmd = /^request\s+[\d,.]+\s+from\s+\d+$/i.test(text.trim()) || /^remind\s+.+\s+about\s+[\d,.]+\s*$/i.test(text.trim());
       const isHelpCmd = /^(help|menu|commands|start|what can you do|hi|hello)$/i.test(text.trim());
       if (!cmdUser && (isBudgetCmd || isReportCmd || isGroupCmd || isExpenseCmd || isFamilyCmd || isRequestCmd || isHelpCmd)) {
@@ -552,6 +554,10 @@ const plugin = async (fastify, options) => {
         }
         const addFamilyPhone = parseAddToFamilyCommand(text);
         if (addFamilyPhone) {
+          if (!ENABLE_FAMILY) {
+            await sendWhatsAppText(senderId, "Family feature is temporarily unavailable. We'll bring it back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const result = await addToFamily(supabase, cmdUser.id, addFamilyPhone);
             if (result.ok) {
@@ -565,6 +571,10 @@ const plugin = async (fastify, options) => {
           return reply.send({ success: true });
         }
         if (/^family\s+summary$/i.test(text.trim())) {
+          if (!ENABLE_FAMILY) {
+            await sendWhatsAppText(senderId, "Family feature is temporarily unavailable. We'll bring it back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const data = await getFamilySpendingThisMonth(supabase, cmdUser.id);
             const msg = formatFamilySummaryMessage(data);
@@ -598,6 +608,11 @@ const plugin = async (fastify, options) => {
       // When groups are disabled, reply to group-like messages from anyone (e.g. new user typing "groups")
       if (!ENABLE_GROUPS && (/^groups$/i.test(text.trim()) || parseCreateGroupCommand(text) || parseAddToGroupCommand(text) || parseBalanceCommand(text) || parseSettleCommand(text))) {
         await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+        return reply.send({ success: true });
+      }
+      // When family is disabled, reply to family-like messages from anyone
+      if (!ENABLE_FAMILY && (parseAddToFamilyCommand(text) || /^family\s+summary$/i.test(text.trim()))) {
+        await sendWhatsAppText(senderId, "Family feature is temporarily unavailable. We'll bring it back soon.");
         return reply.send({ success: true });
       }
 

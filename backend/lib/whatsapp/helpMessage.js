@@ -10,7 +10,6 @@ function getHelpMessage() {
     `📥 Forward UPI/bank msgs or send a *receipt photo* → we record it\n` +
     `💰 _budget Food 15000_ – monthly limit + alerts\n` +
     `📊 _report_ or _summary_ – spending by category\n` +
-    `👨‍👩‍👧 _add to family 91XXX_ · _family summary_\n` +
     `💬 _request 500 from 91XXX_ – we remind them\n` +
     `🔄 After a txn we may ask *recurring?* or *split GroupName?*\n\n` +
     `_help_ or _menu_ – show this again`
