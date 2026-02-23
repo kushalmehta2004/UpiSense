@@ -500,22 +500,40 @@ const plugin = async (fastify, options) => {
                 return reply.send({ success: true });
               }
               if (intent.type === 'transaction') {
-                const { error: txnErr } = await supabase
+                const isP2P = intent.is_p2p === true;
+                const category = isP2P ? 'pending_clarification' : intent.category;
+                const { data: txn, error: txnErr } = await supabase
                   .from('transactions')
                   .insert([{
                     user_id: cmdUser.id,
                     amount: intent.amount,
                     merchant_name: intent.merchant_name || 'Unknown',
                     upi_id: null,
-                    category: intent.category,
+                    category,
                     source_app: 'unified_agent',
                     parse_method: 'unified_agent',
                     confidence: 0.9,
                     timestamp: new Date().toISOString()
-                  }]);
+                  }])
+                  .select('id')
+                  .single();
                 if (txnErr) {
                   console.error('Unified agent transaction insert error:', txnErr.message);
                   await sendWhatsAppText(senderId, `❌ Could not save: ${txnErr.message}`);
+                  return reply.send({ success: true });
+                }
+                if (isP2P) {
+                  try {
+                    await sendClarificationAndSavePending(supabase, {
+                      userId: cmdUser.id,
+                      whatsappNumber: senderId,
+                      transactionId: txn.id,
+                      merchantName: intent.merchant_name || 'Unknown',
+                      upiId: null
+                    });
+                  } catch (e) {
+                    console.error('Clarification send failed:', e.message);
+                  }
                   return reply.send({ success: true });
                 }
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})`);
@@ -717,6 +735,14 @@ const plugin = async (fastify, options) => {
               console.error('Welcome/help send failed:', e.message);
             }
           }
+        }
+
+        const merchantStr = (parsed.merchant || parsed.upi_id || '').trim();
+        const isUnknownMerchant = !merchantStr || merchantStr.toLowerCase() === 'unknown';
+        if (isUnknownMerchant) {
+          const amountDisplay = parsed.amount != null ? `₹${Number(parsed.amount).toLocaleString('en-IN')}` : '₹?';
+          await sendWhatsAppText(senderId, `Who did you pay ${amountDisplay} to? Reply with the name or place so we can categorize it.`);
+          return reply.send({ success: true });
         }
 
         // Categorize transaction (merchant_memory → dictionary → LLM inference → P2P clarification → default)

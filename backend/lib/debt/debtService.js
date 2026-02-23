@@ -71,18 +71,22 @@ function formatIOweMessage(entries) {
 
 /**
  * Parse "who owes me" / "owed to me" / "list owed to me"
+ * Allows optional trailing punctuation (e.g. "who owes me?")
  */
 function parseOwedToMeCommand(text) {
-  const t = text.trim().toLowerCase();
+  const t = text.trim().replace(/\s*[.?!]+\s*$/i, '').trim().toLowerCase();
+  if (!t) return false;
   if (/^(?:who\s+owes\s+me|owed\s+to\s+me|list\s+owed\s+to\s+me|people\s+who\s+owe\s+me)$/i.test(t)) return true;
   return false;
 }
 
 /**
  * Parse "i owe" / "who i owe" / "my debts" / "who do i owe"
+ * Allows optional trailing punctuation (e.g. "who i owe?")
  */
 function parseIOweCommand(text) {
-  const t = text.trim().toLowerCase();
+  const t = text.trim().replace(/\s*[.?!]+\s*$/i, '').trim().toLowerCase();
+  if (!t) return false;
   if (/^(?:i\s+owe|who\s+i\s+owe|my\s+debts|who\s+do\s+i\s+owe|people\s+i\s+owe)$/i.test(t)) return true;
   return false;
 }

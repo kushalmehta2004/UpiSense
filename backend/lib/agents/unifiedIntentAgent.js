@@ -48,21 +48,26 @@ async function parseWithUnifiedAgent(text) {
 Output schema (use exactly these field names):
 - type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "none"
 - amount: number (INR) – required for all except type "none"
-- For type "transaction": merchant_name, category (one of: ${CATEGORIES.join(', ')}). Infer category: restaurant→Food & Dining, cab→Transport, etc.
+- For type "transaction": merchant_name (required – who/where; if unknown use "none" type), category. Always use "Food & Dining" for restaurant, cafe, dinner, food, eatery, bar, pub. Use "Transport" for cab, auto, uber, ola. Use "Health" for pharmacy, medicine.
+- If the recipient is clearly a person's name (e.g. John, Raj, Priya, mom, dad) and NOT a business/place, add "is_p2p": true so we ask what it was for.
+- For "500" alone or message with only an amount and no recipient, return {"type":"none"} – do not guess.
 - For type "group_expense": group_name, description, shares (array or null). "friend owes me 200" = friend's share 200; "I owe 100 to Samkit" = my share 100. Sum of shares = amount.
 - For type "owed_to_me": person_name (who owes the user). E.g. "Samkit owes me 500" → person_name "Samkit", amount 500. "Someone owes me 200" → person_name "Someone".
 - For type "i_owe": person_name (who the user owes). E.g. "I owe Raj 500" → person_name "Raj", amount 500. "I owe someone 500" → person_name "Someone".
 
 Examples:
+- "100 to john" → {"type":"transaction","amount":100,"merchant_name":"john","category":"Other","is_p2p":true}
 - "500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
-- "Samkit owes me 500" → {"type":"owed_to_me","person_name":"Samkit","amount":500}
+- "Paid 500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
+- "500" only or just a number with no recipient → {"type":"none"}
 - "Raj owes me 200" → {"type":"owed_to_me","person_name":"Raj","amount":200}
 - "I owe Priya 500" → {"type":"i_owe","person_name":"Priya","amount":500}
 - "I owe someone 500" → {"type":"i_owe","person_name":"Someone","amount":500}
 - "Paid 500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
 - "i paid 500 at a restaurant in group 306 for dinner where my friend owes me 200" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"306","description":"dinner","shares":[{"person":"friend","amount":200},{"person":"me","amount":300}]}
 
-If the message is clearly NOT a payment, group expense, or IOU (e.g. "hello"), return exactly: {"type":"none"}
+If the message is clearly NOT a payment, group expense, or IOU (e.g. "hello", "500" alone), return exactly: {"type":"none"}
+Do NOT return type "transaction" with merchant_name "Unknown" or empty – return "none" instead so we can ask who they paid.
 Prefer "owed_to_me" when someone owes the user (e.g. "X owes me Y"). Prefer "i_owe" when the user owes someone (e.g. "I owe X Y").
 
 Return ONLY valid JSON. No markdown, no code block, no explanation.`;
@@ -88,8 +93,11 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
     const category = parsed.category && CATEGORIES.includes(parsed.category) ? parsed.category : 'Other';
 
     if (parsed.type === 'transaction') {
-      const merchant = (parsed.merchant_name || '').trim() || 'Unknown';
-      return { type: 'transaction', amount, category, merchant_name: merchant };
+      const merchant = (parsed.merchant_name || '').trim();
+      if (!merchant || merchant.toLowerCase() === 'unknown') return null;
+      const category = parsed.category && CATEGORIES.includes(parsed.category) ? parsed.category : 'Other';
+      const is_p2p = parsed.is_p2p === true || parsed.is_p2p === 'true';
+      return { type: 'transaction', amount, category, merchant_name: merchant, is_p2p };
     }
 
     if (parsed.type === 'group_expense') {
