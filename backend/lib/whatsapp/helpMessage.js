@@ -10,8 +10,6 @@ function getHelpMessage() {
     `📥 Forward UPI/bank msgs or send a *receipt photo* → we record it\n` +
     `💰 _budget Food 15000_ – monthly limit + alerts\n` +
     `📊 _report_ or _summary_ – spending by category\n` +
-    `👥 _create group X_ · _add 91XXX to X_ · _groups_\n` +
-    `👥 _expense 500 dinner in X_ · _balance X_ · _settle 500 with name in X_\n` +
     `👨‍👩‍👧 _add to family 91XXX_ · _family summary_\n` +
     `💬 _request 500 from 91XXX_ – we remind them\n` +
     `🔄 After a txn we may ask *recurring?* or *split GroupName?*\n\n` +
@@ -23,7 +21,7 @@ function getHelpMessage() {
  * Short one-line description (for Meta Business "About" / profile – set in Meta Business Suite)
  */
 function getBotDescription() {
-  return 'Track UPI spending, set budgets, split bills with friends, and get spending reports – all on WhatsApp.';
+  return 'Track UPI spending, set budgets, and get spending reports – all on WhatsApp.';
 }
 
 module.exports = { getHelpMessage, getBotDescription };

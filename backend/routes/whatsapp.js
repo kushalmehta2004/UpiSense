@@ -49,6 +49,8 @@ const {
 const { shouldHandle: groupsShouldHandle, process: groupsAgentProcess } = require('../lib/agents/groupsAgent.js');
 const { logAgentHandling } = require('../lib/agents/agentRouter.js');
 const { parseWithUnifiedAgent, shouldTryAgent } = require('../lib/agents/unifiedIntentAgent.js');
+// Groups feature: set ENABLE_GROUPS=true in .env to re-enable
+const ENABLE_GROUPS = process.env.ENABLE_GROUPS === 'true';
 const { parseReceiptFromWhatsAppMedia } = require('../lib/receipt/receiptParser.js');
 const {
   addToFamily,
@@ -289,8 +291,8 @@ const plugin = async (fastify, options) => {
       }
       const isBudgetCmd = /^(?:set\s+)?budget\s+.+\s+[\d,]+\.?\d*$/i.test(text.trim());
       const isReportCmd = /^(?:monthly\s+)?(?:report|summary)\s*\S*$/i.test(text.trim()) || /^(report|summary)$/i.test(text.trim());
-      const isGroupCmd = /^(?:create|new)\s+group\s+.+$/i.test(text.trim()) || /^add\s+.+\s+to\s+.+$/i.test(text.trim()) || /^groups$/i.test(text.trim());
-      const isExpenseCmd = /^expense\s+\d+.+in\s+.+$/i.test(text.trim()) || /^balance\s+(?:in\s+)?.+$/i.test(text.trim()) || /^settle(?:\s+up)?\s+\d+.+$/i.test(text.trim());
+      const isGroupCmd = ENABLE_GROUPS && (/^(?:create|new)\s+group\s+.+$/i.test(text.trim()) || /^add\s+.+\s+to\s+.+$/i.test(text.trim()) || /^groups$/i.test(text.trim()));
+      const isExpenseCmd = ENABLE_GROUPS && (/^expense\s+\d+.+in\s+.+$/i.test(text.trim()) || /^balance\s+(?:in\s+)?.+$/i.test(text.trim()) || /^settle(?:\s+up)?\s+\d+.+$/i.test(text.trim()));
       const isFamilyCmd = /^add\s+(?:to\s+)?family\s+\d+$/i.test(text.trim()) || /^add\s+\d+\s+to\s+family$/i.test(text.trim()) || /^family\s+summary$/i.test(text.trim());
       const isRequestCmd = /^request\s+[\d,.]+\s+from\s+\d+$/i.test(text.trim()) || /^remind\s+.+\s+about\s+[\d,.]+\s*$/i.test(text.trim());
       const isHelpCmd = /^(help|menu|commands|start|what can you do|hi|hello)$/i.test(text.trim());
@@ -371,6 +373,10 @@ const plugin = async (fastify, options) => {
         }
         const groupName = parseCreateGroupCommand(text);
         if (groupName) {
+          if (!ENABLE_GROUPS) {
+            await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const group = await createGroup(supabase, cmdUser.id, groupName, senderId);
             await sendWhatsAppText(senderId, `✅ Group *${group.name}* created. Add members: _add 9876543210 to ${group.name}_`);
@@ -382,6 +388,10 @@ const plugin = async (fastify, options) => {
         }
         const addTo = parseAddToGroupCommand(text);
         if (addTo) {
+          if (!ENABLE_GROUPS) {
+            await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const group = await findGroupByName(supabase, cmdUser.id, addTo.groupName);
             if (!group) {
@@ -397,6 +407,10 @@ const plugin = async (fastify, options) => {
           return reply.send({ success: true });
         }
         if (/^groups$/i.test(text.trim())) {
+          if (!ENABLE_GROUPS) {
+            await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const groups = await listGroupsForUser(supabase, cmdUser.id);
             if (!groups.length) {
@@ -418,6 +432,10 @@ const plugin = async (fastify, options) => {
             if (intent) {
               logAgentHandling('UnifiedIntent', `${intent.type}: ${intent.amount} ${intent.category}`);
               if (intent.type === 'group_expense') {
+                if (!ENABLE_GROUPS) {
+                  await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+                  return reply.send({ success: true });
+                }
                 const group = await findGroupByName(supabase, cmdUser.id, intent.group_name);
                 if (!group) {
                   await sendWhatsAppText(senderId, `❌ Group "${intent.group_name}" not found. Reply _groups_ to see your groups.`);
@@ -474,7 +492,7 @@ const plugin = async (fastify, options) => {
         }
 
         // Groups agent fallback: expense/split messages (e.g. regex "expense 500 dinner in X")
-        if (groupsShouldHandle(text)) {
+        if (ENABLE_GROUPS && groupsShouldHandle(text)) {
           logAgentHandling('Groups', text.trim().slice(0, 60));
           const handled = await groupsAgentProcess(text, {
             supabase,
@@ -487,6 +505,10 @@ const plugin = async (fastify, options) => {
         }
         const balanceGroupName = parseBalanceCommand(text);
         if (balanceGroupName) {
+          if (!ENABLE_GROUPS) {
+            await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const group = await findGroupByName(supabase, cmdUser.id, balanceGroupName);
             if (!group) {
@@ -504,6 +526,10 @@ const plugin = async (fastify, options) => {
         }
         const settleInput = parseSettleCommand(text);
         if (settleInput) {
+          if (!ENABLE_GROUPS) {
+            await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+            return reply.send({ success: true });
+          }
           try {
             const group = await findGroupByName(supabase, cmdUser.id, settleInput.groupName);
             if (!group) {
@@ -567,6 +593,12 @@ const plugin = async (fastify, options) => {
           return reply.send({ success: true });
         }
 
+      }
+
+      // When groups are disabled, reply to group-like messages from anyone (e.g. new user typing "groups")
+      if (!ENABLE_GROUPS && (/^groups$/i.test(text.trim()) || parseCreateGroupCommand(text) || parseAddToGroupCommand(text) || parseBalanceCommand(text) || parseSettleCommand(text))) {
+        await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
+        return reply.send({ success: true });
       }
 
       // Fallback: transaction parse (regex + LLM) then categorize and store
