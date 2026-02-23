@@ -43,26 +43,27 @@ async function parseWithUnifiedAgent(text) {
   const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const model = ai.getGenerativeModel({ model: modelName });
 
-  const prompt = `You are a financial assistant. The user sends messages about payments or group expenses. Your job is to interpret the message and output ONE structured JSON object that matches our schema.
+  const prompt = `You are a financial assistant. The user sends messages about payments, group expenses, or informal debt (IOUs). Your job is to interpret the message and output ONE structured JSON object that matches our schema.
 
 Output schema (use exactly these field names):
-- type: either "transaction" (simple payment to record) or "group_expense" (expense to add to a group, possibly with custom split)
-- amount: number (INR)
-- category: exactly one of these: ${CATEGORIES.join(', ')}. Infer from context: restaurant/cafe/dinner/food → "Food & Dining", cab/auto/uber → "Transport", pharmacy/medicine → "Health", etc.
-- For type "transaction": include merchant_name (who/where the payment went).
-- For type "group_expense": include group_name (e.g. "306", "Apartment", "Trip"), description (e.g. "dinner", "groceries"), and optionally shares. shares: null means equal split. Otherwise array of { "person": "me" or a name (e.g. "friend", "Raj", "Samkit"), "amount": number }. Sum of share amounts must equal total amount. "friend owes me 200" means friend's share is 200; "I owe 100 to Samkit" means my share is 100. Use "me" for the person who paid (the user). If only some shares are stated, add { "person": "others", "amount": remainder } so the sum equals total.
+- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "none"
+- amount: number (INR) – required for all except type "none"
+- For type "transaction": merchant_name, category (one of: ${CATEGORIES.join(', ')}). Infer category: restaurant→Food & Dining, cab→Transport, etc.
+- For type "group_expense": group_name, description, shares (array or null). "friend owes me 200" = friend's share 200; "I owe 100 to Samkit" = my share 100. Sum of shares = amount.
+- For type "owed_to_me": person_name (who owes the user). E.g. "Samkit owes me 500" → person_name "Samkit", amount 500. "Someone owes me 200" → person_name "Someone".
+- For type "i_owe": person_name (who the user owes). E.g. "I owe Raj 500" → person_name "Raj", amount 500. "I owe someone 500" → person_name "Someone".
 
 Examples:
 - "500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
+- "Samkit owes me 500" → {"type":"owed_to_me","person_name":"Samkit","amount":500}
+- "Raj owes me 200" → {"type":"owed_to_me","person_name":"Raj","amount":200}
+- "I owe Priya 500" → {"type":"i_owe","person_name":"Priya","amount":500}
+- "I owe someone 500" → {"type":"i_owe","person_name":"Someone","amount":500}
 - "Paid 500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
-- "Paid 200 for dinner at a restaurant" → {"type":"transaction","amount":200,"category":"Food & Dining","merchant_name":"restaurant"}
 - "i paid 500 at a restaurant in group 306 for dinner where my friend owes me 200" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"306","description":"dinner","shares":[{"person":"friend","amount":200},{"person":"me","amount":300}]}
-- "Expense 500 to 306 where friend owes 200" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"306","description":"expense","shares":[{"person":"friend","amount":200},{"person":"me","amount":300}]}
-- "expense 500 dinner in Apartment" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"Apartment","description":"dinner","shares":null}
-- "paid 500 for dinner in group 306 where I owe 100 to Samkit" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"306","description":"dinner","shares":[{"person":"me","amount":100},{"person":"Samkit","amount":100},{"person":"others","amount":300}]}
 
-If the message is clearly NOT a payment or group expense (e.g. "hello", "what's the weather"), return exactly: {"type":"none"}
-If there is an amount and recipient/merchant but no group, use type "transaction". If there is a group (by name or number like 306) and an expense, use type "group_expense".
+If the message is clearly NOT a payment, group expense, or IOU (e.g. "hello"), return exactly: {"type":"none"}
+Prefer "owed_to_me" when someone owes the user (e.g. "X owes me Y"). Prefer "i_owe" when the user owes someone (e.g. "I owe X Y").
 
 Return ONLY valid JSON. No markdown, no code block, no explanation.`;
 
@@ -120,6 +121,16 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
       };
     }
 
+    if (parsed.type === 'owed_to_me') {
+      const person_name = (parsed.person_name || 'Someone').trim();
+      return { type: 'owed_to_me', person_name, amount };
+    }
+
+    if (parsed.type === 'i_owe') {
+      const person_name = (parsed.person_name || 'Someone').trim();
+      return { type: 'i_owe', person_name, amount };
+    }
+
     return null;
   } catch (err) {
     console.error('unifiedIntentAgent error:', err.message);
@@ -138,7 +149,7 @@ function shouldTryAgent(text) {
   if (t.length < 3) return false;
   // Contains something that could be an amount (digit) and payment/expense cues
   const hasNumber = /\d+/.test(t);
-  const looksLikePaymentOrExpense = /\b(?:paid|pay|expense|spent|to\s+\w+|in\s+group|owes?|owe\s+\d|for\s+\w+|at\s+a?\s*\w+)\b/i.test(t) || /^\d+\s+to\s+/i.test(t);
+  const looksLikePaymentOrExpense = /\b(?:paid|pay|expense|spent|to\s+\w+|in\s+group|owes?\s+me|i\s+owe|owe\s+\d|for\s+\w+|at\s+a?\s*\w+)\b/i.test(t) || /^\d+\s+to\s+/i.test(t);
   return hasNumber && (looksLikePaymentOrExpense || t.split(/\s+/).length >= 3);
 }
 

@@ -65,6 +65,15 @@ const {
   findUserByPhone
 } = require('../lib/requestMoney/requestMoneyService.js');
 const {
+  addDebtEntry,
+  getOwedToMe,
+  getIOwe,
+  formatOwedToMeMessage,
+  formatIOweMessage,
+  parseOwedToMeCommand,
+  parseIOweCommand
+} = require('../lib/debt/debtService.js');
+const {
   findSimilarRecentTransaction,
   setPendingRecurringSuggestion,
   handleRecurringYes
@@ -298,7 +307,8 @@ const plugin = async (fastify, options) => {
       const isFamilyCmd = ENABLE_FAMILY && (/^add\s+(?:to\s+)?family\s+\d+$/i.test(text.trim()) || /^add\s+\d+\s+to\s+family$/i.test(text.trim()) || /^family\s+summary$/i.test(text.trim()));
       const isRequestCmd = /^request\s+[\d,.]+\s+from\s+\d+$/i.test(text.trim()) || /^remind\s+.+\s+about\s+[\d,.]+\s*$/i.test(text.trim());
       const isHelpCmd = /^(help|menu|commands|start|what can you do|hi|hello)$/i.test(text.trim());
-      if (!cmdUser && (isBudgetCmd || isReportCmd || isGroupCmd || isExpenseCmd || isFamilyCmd || isRequestCmd || isHelpCmd)) {
+      const isDebtListCmd = parseOwedToMeCommand(text) || parseIOweCommand(text);
+      if (!cmdUser && (isBudgetCmd || isReportCmd || isGroupCmd || isExpenseCmd || isFamilyCmd || isRequestCmd || isHelpCmd || isDebtListCmd)) {
         const canonicalPhone = normalizeForWhatsApp(senderId);
         const { data: newU, error } = await supabase.from('users').insert([{
           whatsapp_number: canonicalPhone,
@@ -373,6 +383,26 @@ const plugin = async (fastify, options) => {
           }
           return reply.send({ success: true });
         }
+        if (parseOwedToMeCommand(text)) {
+          try {
+            const entries = await getOwedToMe(supabase, cmdUser.id);
+            await sendWhatsAppText(senderId, formatOwedToMeMessage(entries));
+          } catch (err) {
+            console.error('Owed to me list error:', err.message);
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
+        if (parseIOweCommand(text)) {
+          try {
+            const entries = await getIOwe(supabase, cmdUser.id);
+            await sendWhatsAppText(senderId, formatIOweMessage(entries));
+          } catch (err) {
+            console.error('I owe list error:', err.message);
+            await sendWhatsAppText(senderId, `❌ ${err.message}`);
+          }
+          return reply.send({ success: true });
+        }
         const groupName = parseCreateGroupCommand(text);
         if (groupName) {
           if (!ENABLE_GROUPS) {
@@ -432,7 +462,17 @@ const plugin = async (fastify, options) => {
           try {
             const intent = await parseWithUnifiedAgent(text);
             if (intent) {
-              logAgentHandling('UnifiedIntent', `${intent.type}: ${intent.amount} ${intent.category}`);
+              logAgentHandling('UnifiedIntent', `${intent.type}: ${intent.amount}${intent.person_name ? ` ${intent.person_name}` : ''}${intent.category ? ` ${intent.category}` : ''}`);
+              if (intent.type === 'owed_to_me') {
+                await addDebtEntry(supabase, cmdUser.id, 'owed_to_me', intent.person_name, intent.amount);
+                await sendWhatsAppText(senderId, `✅ Recorded: *${intent.person_name}* owes you ₹${intent.amount.toLocaleString('en-IN')}. Reply _who owes me_ to see your list.`);
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'i_owe') {
+                await addDebtEntry(supabase, cmdUser.id, 'i_owe', intent.person_name, intent.amount);
+                await sendWhatsAppText(senderId, `✅ Recorded: You owe *${intent.person_name}* ₹${intent.amount.toLocaleString('en-IN')}. Reply _who I owe_ to see your list.`);
+                return reply.send({ success: true });
+              }
               if (intent.type === 'group_expense') {
                 if (!ENABLE_GROUPS) {
                   await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");

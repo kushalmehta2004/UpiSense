@@ -10,6 +10,8 @@ function getHelpMessage() {
     `📥 Forward UPI/bank msgs or send a *receipt photo* → we record it\n` +
     `💰 _budget Food 15000_ – monthly limit + alerts\n` +
     `📊 _report_ or _summary_ – spending by category\n` +
+    `📋 _Samkit owes me 500_ / _I owe Raj 300_ – track who owes you & who you owe\n` +
+    `📋 _who owes me_ · _who I owe_ – see your IOU lists\n` +
     `💬 _request 500 from 91XXX_ – we remind them\n` +
     `🔄 After a txn we may ask *recurring?* or *split GroupName?*\n\n` +
     `_help_ or _menu_ – show this again`
