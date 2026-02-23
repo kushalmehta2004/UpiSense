@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Twitter, Linkedin, Instagram } from 'lucide-react';
 
@@ -19,14 +20,20 @@ const supportLinks = [
 ];
 
 export function Footer() {
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
   return (
     <footer className="py-16 px-4 sm:px-6" style={{ background: '#0A0F1E' }}>
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
           <div>
             <Link to="/" className="inline-flex items-center gap-2 font-bold text-xl mb-3" style={{ fontFamily: 'Clash Display, sans-serif' }}>
-              <span style={{ color: MINT }}>U</span>
-              <span style={{ color: TEXT }}>piSense</span>
+              <img
+                src={logoSrc}
+                alt="UpiSense"
+                className="h-10 w-10 shrink-0 object-contain rounded-lg"
+                onError={() => setLogoSrc('/logo.svg')}
+              />
+              <span style={{ color: TEXT }}>UpiSense</span>
             </Link>
             <p className="text-sm mb-4" style={{ color: MUTED }}>Financial clarity, automatically.</p>
             <div className="flex gap-3">
