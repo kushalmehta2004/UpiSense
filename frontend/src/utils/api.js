@@ -60,6 +60,11 @@ export const groups = {
   removeMember: (groupId, memberId) => api.delete(`/api/groups/${groupId}/members/${memberId}`),
 };
 
+export const debts = {
+  owedToMe: () => api.get('/api/debts/owed-to-me'),
+  iOwe: () => api.get('/api/debts/i-owe'),
+};
+
 export const budgets = {
   list: () => api.get('/api/budgets'),
 };

@@ -6,7 +6,7 @@ import { CategoryChart } from '../components/CategoryChart';
 import { WeeklyTrend } from '../components/WeeklyTrend';
 import { useAuthStore } from '../hooks/useAuth';
 import { createClient } from '@supabase/supabase-js';
-import { groups as groupsApi, budgets as budgetsApi, family as familyApi } from '../utils/api';
+import { budgets as budgetsApi, debts as debtsApi } from '../utils/api';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -16,8 +16,7 @@ export function Dashboard() {
   const [newTxns, setNewTxns] = useState(0);
   const [dateRange, setDateRange] = useState({ from: undefined, to: undefined });
   const [budgets, setBudgets] = useState([]);
-  const [groupsSummary, setGroupsSummary] = useState({ totalYouOwe: 0, totalOwedToYou: 0, groupCount: 0 });
-  const [familyTotal, setFamilyTotal] = useState(null);
+  const [debtSummary, setDebtSummary] = useState({ owedToMe: [], iOwe: [] });
   const [featuresLoading, setFeaturesLoading] = useState(true);
 
   // Real-time subscription for new transactions (requires VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY)
@@ -52,29 +51,24 @@ export function Dashboard() {
     };
   }, [user?.id]);
 
-  // Load budgets, groups summary, family summary
+  // Load budgets and debts summary
   useEffect(() => {
     const load = async () => {
       setFeaturesLoading(true);
       try {
-        const [budgetsRes, summaryRes, familyRes] = await Promise.allSettled([
+        const [budgetsRes, owedRes, iOweRes] = await Promise.allSettled([
           budgetsApi.list(),
-          groupsApi.summary(),
-          familyApi.summary(),
+          debtsApi.owedToMe(),
+          debtsApi.iOwe(),
         ]);
         if (budgetsRes.status === 'fulfilled' && budgetsRes.value?.data?.budgets) {
           setBudgets(budgetsRes.value.data.budgets);
         }
-        if (summaryRes.status === 'fulfilled' && summaryRes.value?.data?.success && summaryRes.value.data.groupCount > 0) {
-          const d = summaryRes.value.data;
-          setGroupsSummary({
-            totalYouOwe: d.totalYouOwe || 0,
-            totalOwedToYou: d.totalOwedToYou || 0,
-            groupCount: d.groupCount || 0,
-          });
+        if (owedRes.status === 'fulfilled' && owedRes.value?.data?.entries) {
+          setDebtSummary((prev) => ({ ...prev, owedToMe: owedRes.value.data.entries }));
         }
-        if (familyRes.status === 'fulfilled' && familyRes.value?.data?.total != null) {
-          setFamilyTotal(familyRes.value.data.total);
+        if (iOweRes.status === 'fulfilled' && iOweRes.value?.data?.entries) {
+          setDebtSummary((prev) => ({ ...prev, iOwe: iOweRes.value.data.entries }));
         }
       } catch {
         // ignore
@@ -101,8 +95,8 @@ export function Dashboard() {
 
         <h1 className="text-2xl font-bold text-slate-800 mb-6">Dashboard</h1>
 
-        {/* Budgets, Groups, Family summary */}
-        {!featuresLoading && (budgets.length > 0 || groupsSummary.groupCount > 0 || familyTotal != null) && (
+        {/* Budgets and Debts summary */}
+        {!featuresLoading && (budgets.length > 0 || debtSummary.owedToMe.length > 0 || debtSummary.iOwe.length > 0) && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             {budgets.length > 0 && (
               <div className="p-4 bg-white rounded-xl border border-slate-200">
@@ -122,23 +116,32 @@ export function Dashboard() {
                 )}
               </div>
             )}
-            {groupsSummary.groupCount > 0 && (
+            {(debtSummary.owedToMe.length > 0 || debtSummary.iOwe.length > 0) && (
               <Link
-                to="/groups"
-                className="block p-4 bg-white rounded-xl border border-slate-200 hover:border-[#00a651] hover:shadow-md transition-all"
+                to="/debts"
+                className="block p-4 bg-white rounded-xl border border-slate-200 hover:border-[#00a651] hover:shadow-md transition-all col-span-1 md:col-span-2"
               >
-                <h2 className="text-sm font-semibold text-slate-600 mb-2">Groups</h2>
-                <p className="text-amber-700 text-sm">You owe: ₹{groupsSummary.totalYouOwe.toLocaleString('en-IN')}</p>
-                <p className="text-emerald-700 text-sm">Owed to you: ₹{groupsSummary.totalOwedToYou.toLocaleString('en-IN')}</p>
-                <p className="text-xs text-slate-500 mt-2">{groupsSummary.groupCount} group(s) →</p>
+                <h2 className="text-sm font-semibold text-slate-600 mb-2">Debts (IOU)</h2>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-emerald-700 font-medium">Who owes you</p>
+                    <p className="text-slate-700">
+                      {debtSummary.owedToMe.length === 0
+                        ? 'No one'
+                        : `${debtSummary.owedToMe.length} person(s) · ₹${debtSummary.owedToMe.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-amber-700 font-medium">Who you owe</p>
+                    <p className="text-slate-700">
+                      {debtSummary.iOwe.length === 0
+                        ? 'No one'
+                        : `${debtSummary.iOwe.length} person(s) · ₹${debtSummary.iOwe.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}`}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">View full list →</p>
               </Link>
-            )}
-            {familyTotal != null && (
-              <div className="p-4 bg-white rounded-xl border border-slate-200">
-                <h2 className="text-sm font-semibold text-slate-600 mb-2">Family shared (this month)</h2>
-                <p className="text-lg font-bold text-slate-800">₹{Number(familyTotal).toLocaleString('en-IN')}</p>
-                <p className="text-xs text-slate-500 mt-1">You + linked family members</p>
-              </div>
             )}
           </div>
         )}

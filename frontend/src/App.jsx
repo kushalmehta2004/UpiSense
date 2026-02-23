@@ -5,7 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Transactions } from './pages/Transactions';
-import { Groups, GroupDetail } from './pages/Groups';
+import { Debts } from './pages/Debts';
 import { Settings } from './pages/Settings';
 
 function App() {
@@ -36,18 +36,10 @@ function App() {
           }
         />
         <Route
-          path="/groups"
+          path="/debts"
           element={
             <ProtectedRoute>
-              <Groups />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/groups/:id"
-          element={
-            <ProtectedRoute>
-              <GroupDetail />
+              <Debts />
             </ProtectedRoute>
           }
         />

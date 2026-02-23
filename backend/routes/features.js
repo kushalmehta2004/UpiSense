@@ -16,6 +16,7 @@ const {
 const { getBalanceForUser } = require('../lib/expenses/expenseService.js');
 const { listBudgets, getSpendThisMonth } = require('../lib/budget/budgetService.js');
 const { getFamilySpendingThisMonth } = require('../lib/family/familyService.js');
+const { getOwedToMe, getIOwe } = require('../lib/debt/debtService.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -308,6 +309,40 @@ const plugin = async (fastify) => {
       });
     } catch (error) {
       console.error('❌ Family summary error:', error.message);
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * GET /api/debts/owed-to-me
+   * List of people who owe the user (IOU tracking)
+   */
+  fastify.get('/api/debts/owed-to-me', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const entries = await getOwedToMe(supabase, userId);
+      return reply.send({ success: true, entries });
+    } catch (error) {
+      console.error('❌ Debts owed-to-me error:', error.message);
+      return reply.code(500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
+   * GET /api/debts/i-owe
+   * List of people the user owes (IOU tracking)
+   */
+  fastify.get('/api/debts/i-owe', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const entries = await getIOwe(supabase, userId);
+      return reply.send({ success: true, entries });
+    } catch (error) {
+      console.error('❌ Debts i-owe error:', error.message);
       return reply.code(500).send({ error: error.message || 'Server error' });
     }
   });

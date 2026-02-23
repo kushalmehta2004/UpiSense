@@ -21,8 +21,8 @@ export function Header() {
       <Link to="/transactions" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
         Transactions
       </Link>
-      <Link to="/groups" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
-        Groups
+      <Link to="/debts" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
+        Debts
       </Link>
       <Link to="/settings" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
         Settings
