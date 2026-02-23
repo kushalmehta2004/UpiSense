@@ -232,9 +232,6 @@ export function TransactionFeed({ compact = false }) {
     );
   }
 
-  const showFilters = !compact;
-  const list = compact ? transactions.slice(0, 5) : transactions;
-
   return (
     <div className="space-y-4">
       {showFilters && (

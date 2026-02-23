@@ -179,14 +179,6 @@ export function Debts() {
 
       {!isEmpty && (
       <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">        <div
-          className="p-4 rounded-xl border text-sm"
-          style={{ background: 'rgba(249,115,22,0.1)', borderColor: 'rgba(249,115,22,0.3)', color: colors.orange }}
-        >
-          {error}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Who owes you */}
         <motion.section
