@@ -46,10 +46,13 @@ export function Dashboard() {
   });
   const { trend, loading: trendLoading } = useDailyTrend(7);
 
-  const totalSpent = summaryTotal || 0;
+  const derivedTotalFromSummary = Array.isArray(summary) && summary.length
+    ? summary.reduce((s, x) => s + (Number(x.amount) || 0), 0)
+    : 0;
+  const totalSpent = (typeof summaryTotal === 'number' && summaryTotal > 0) ? summaryTotal : derivedTotalFromSummary;
   const txnCount = pagination?.total ?? 0;
-  const owedToMeTotal = debtSummary.owedToMe.reduce((s, e) => s + e.amount, 0);
-  const iOweTotal = debtSummary.iOwe.reduce((s, e) => s + e.amount, 0);
+  const owedToMeTotal = debtSummary.owedToMe.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const iOweTotal = debtSummary.iOwe.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
   useEffect(() => {
     if (!supabaseUrl || !supabaseKey || !user?.id) return;

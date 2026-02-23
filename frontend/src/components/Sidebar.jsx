@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuthStore } from '../hooks/useAuth';
 import { LayoutDashboard, ArrowLeftRight, Users, Settings, LogOut } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
   const firstName = user?.name?.split(/\s+/)[0] || 'User';
 
   const handleLogout = () => {
@@ -37,8 +39,13 @@ export function Sidebar() {
       >
         <div className="p-4 lg:p-5 flex items-center gap-3">
           <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
-            <span className="text-xl font-bold shrink-0" style={{ fontFamily: 'Clash Display, sans-serif', color: MINT }}>U</span>
-            <span className="text-lg font-bold truncate hidden lg:inline" style={{ color: TEXT }}>piSense</span>
+            <img
+              src={logoSrc}
+              alt="UpiSense"
+              className="h-9 w-9 shrink-0 object-contain"
+              onError={() => setLogoSrc('/logo.svg')}
+            />
+            <span className="text-lg font-bold truncate hidden lg:inline" style={{ color: TEXT }}>UpiSense</span>
           </Link>
         </div>
         <p className="px-4 lg:px-5 pb-3 text-xs hidden lg:block" style={{ color: MUTED }}>

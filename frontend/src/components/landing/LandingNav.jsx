@@ -10,6 +10,7 @@ const TEXT = '#F9FAFB';
 export function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -23,8 +24,13 @@ export function LandingNav() {
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight" style={{ fontFamily: 'Clash Display, sans-serif' }}>
-          <span style={{ color: MINT }}>U</span>
-          <span style={{ color: TEXT }}>piSense</span>
+          <img
+            src={logoSrc}
+            alt="UpiSense"
+            className="h-9 w-9 object-contain"
+            onError={() => setLogoSrc('/logo.svg')}
+          />
+          <span style={{ color: TEXT }}>UpiSense</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
           <a href="#how-it-works" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>How it works</a>
