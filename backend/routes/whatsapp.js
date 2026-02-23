@@ -38,6 +38,8 @@ const {
 const {
   parseAddExpenseCommand,
   addExpense,
+  addExpenseWithShares,
+  resolveSharesToUserIds,
   getBalanceForUser,
   formatBalanceMessage,
   parseBalanceCommand,
@@ -45,6 +47,7 @@ const {
   parseSettleCommand,
   resolveSettleToUser
 } = require('../lib/expenses/expenseService.js');
+const { parseExpenseWithLLM } = require('../lib/expenses/expenseLlmParser.js');
 const { parseReceiptFromWhatsAppMedia } = require('../lib/receipt/receiptParser.js');
 const {
   addToFamily,
@@ -423,6 +426,36 @@ const plugin = async (fastify, options) => {
             await sendWhatsAppText(senderId, `❌ ${err.message}`);
           }
           return reply.send({ success: true });
+        }
+        const looksLikeExpense = /expense|paid\s+\d|spent\s+\d/i.test(text) && (/in\s+.+/.test(text) || /group\s+\d+/i.test(text) || /owes?|owe\s+\d/i.test(text));
+        if (looksLikeExpense) {
+          try {
+            const llmExpense = await parseExpenseWithLLM(text);
+            if (llmExpense) {
+              const group = await findGroupByName(supabase, cmdUser.id, llmExpense.groupName);
+              if (!group) {
+                await sendWhatsAppText(senderId, `❌ Group "${llmExpense.groupName}" not found. Reply _groups_ to see your groups.`);
+                return reply.send({ success: true });
+              }
+              const expenseDate = new Date().toISOString().slice(0, 10);
+              if (llmExpense.shares && llmExpense.shares.length > 0) {
+                const resolved = await resolveSharesToUserIds(supabase, group.id, cmdUser.id, llmExpense.shares);
+                if (resolved.length > 0) {
+                  await addExpenseWithShares(supabase, group.id, cmdUser.id, llmExpense.amount, llmExpense.description, expenseDate, resolved);
+                  await sendWhatsAppText(senderId, `✅ Added expense: ₹${llmExpense.amount.toLocaleString('en-IN')} – ${llmExpense.description} in *${group.name}* (custom split).`);
+                } else {
+                  await addExpense(supabase, group.id, cmdUser.id, llmExpense.amount, llmExpense.description, expenseDate);
+                  await sendWhatsAppText(senderId, `✅ Added expense: ₹${llmExpense.amount.toLocaleString('en-IN')} – ${llmExpense.description} in *${group.name}* (split equally).`);
+                }
+              } else {
+                await addExpense(supabase, group.id, cmdUser.id, llmExpense.amount, llmExpense.description, expenseDate);
+                await sendWhatsAppText(senderId, `✅ Added expense: ₹${llmExpense.amount.toLocaleString('en-IN')} – ${llmExpense.description} in *${group.name}* (split equally).`);
+              }
+              return reply.send({ success: true });
+            }
+          } catch (err) {
+            console.error('LLM expense parse/add error:', err.message);
+          }
         }
         const balanceGroupName = parseBalanceCommand(text);
         if (balanceGroupName) {

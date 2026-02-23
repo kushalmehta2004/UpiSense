@@ -27,6 +27,8 @@ function getFinalConfidence(parseConfidence, categorySource) {
     confidence = CONFIDENCE.MEMORY;
   } else if (categorySource === 'dictionary') {
     confidence = CONFIDENCE.DICTIONARY;
+  } else if (categorySource === 'llm') {
+    confidence = 0.85; // Gemini-inferred category (e.g. restaurant → Food & Dining)
   }
   // else keep parse confidence (regex already 0.95, LLM 0.60–0.85)
 

@@ -50,6 +50,24 @@ async function addExpense(supabase, groupId, paidByUserId, amount, description, 
 }
 
 /**
+ * Add expense with custom shares. shares = [{ user_id, amount }]. Sum of amounts must equal total (with 0.02 tolerance).
+ */
+async function addExpenseWithShares(supabase, groupId, paidByUserId, amount, description, expenseDate, shares) {
+  const sum = shares.reduce((a, s) => a + Number(s.amount), 0);
+  if (Math.abs(sum - amount) > 0.02) throw new Error('Share amounts must sum to the total expense amount');
+  const { data: expense, error: eErr } = await supabase
+    .from('expenses')
+    .insert([{ group_id: groupId, paid_by_user_id: paidByUserId, amount, description, expense_date: expenseDate }])
+    .select('id')
+    .single();
+  if (eErr) throw eErr;
+  const rows = shares.map(s => ({ expense_id: expense.id, user_id: s.user_id, share_amount: Number(s.amount) }));
+  const { error: pErr } = await supabase.from('expense_participants').insert(rows);
+  if (pErr) throw pErr;
+  return expense.id;
+}
+
+/**
  * Compute net balance: for each (from, to) how much from owes to.
  * Returns Map of "fromUserId_toUserId" -> amount (positive = from owes to)
  */
@@ -199,9 +217,54 @@ async function resolveSettleToUser(supabase, groupId, toPhoneOrName) {
   return null;
 }
 
+/**
+ * Resolve LLM share entries to [{ user_id, amount }]. person "me" → paidByUserId; "others" → split among members not yet in shares; names → resolveSettleToUser.
+ */
+async function resolveSharesToUserIds(supabase, groupId, paidByUserId, shares) {
+  const memberIds = await getGroupMemberUserIds(supabase, groupId);
+  if (memberIds.length === 0) throw new Error('Group has no members with UpiSense accounts');
+  const result = [];
+  const othersEntry = shares.find(s => (String(s.person || '').toLowerCase() === 'others'));
+  const othersAmount = othersEntry ? othersEntry.amount : 0;
+  const rest = shares.filter(s => (String(s.person || '').toLowerCase() !== 'others'));
+  const resolvedIds = new Set();
+  for (const s of rest) {
+    const person = String(s.person || '').trim();
+    let uid = null;
+    if (person.toLowerCase() === 'me') uid = paidByUserId;
+    else uid = await resolveSettleToUser(supabase, groupId, person);
+    if (uid) {
+      result.push({ user_id: uid, amount: s.amount });
+      resolvedIds.add(uid);
+    }
+  }
+  if (othersAmount > 0) {
+    const remaining = memberIds.filter(id => !resolvedIds.has(id));
+    if (remaining.length === 0) {
+      const meShare = result.find(r => r.user_id === paidByUserId);
+      if (meShare) meShare.amount = Math.round((meShare.amount + othersAmount) * 100) / 100;
+      else result.push({ user_id: paidByUserId, amount: othersAmount });
+    } else {
+      const perPerson = Math.round((othersAmount / remaining.length) * 100) / 100;
+      let extra = Math.round((othersAmount - perPerson * remaining.length) * 100) / 100;
+      remaining.forEach((id, i) => {
+        result.push({ user_id: id, amount: perPerson + (i === 0 ? extra : 0) });
+      });
+    }
+  }
+  // Merge same user_id (e.g. "me" + "others" → one row per user)
+  const byUser = new Map();
+  for (const r of result) {
+    byUser.set(r.user_id, (byUser.get(r.user_id) || 0) + r.amount);
+  }
+  return [...byUser.entries()].map(([user_id, amount]) => ({ user_id, amount: Math.round(amount * 100) / 100 }));
+}
+
 module.exports = {
   parseAddExpenseCommand,
   addExpense,
+  addExpenseWithShares,
+  resolveSharesToUserIds,
   getBalanceForUser,
   formatBalanceMessage,
   parseBalanceCommand,

@@ -1,9 +1,9 @@
 /**
- * Transaction categorization: merchant_memory → dictionary → P2P clarification → default
- * Task 3: Merchant Memory System
+ * Transaction categorization: merchant_memory → dictionary → LLM inference → P2P clarification → default
  */
 
 const { getCategoryForMerchant, ensureLoaded } = require('../merchants/lookup.js');
+const { inferCategoryWithLLM } = require('./inferCategoryWithLLM.js');
 
 /**
  * Determine category for a parsed transaction
@@ -15,7 +15,7 @@ const { getCategoryForMerchant, ensureLoaded } = require('../merchants/lookup.js
  * @param {Object} txn - Parsed transaction { merchant, upi_id, is_p2p }
  * @param {string} userId - User UUID
  * @param {Object} supabase - Supabase client
- * @returns {Promise<{ category: string, source: 'memory'|'dictionary'|'pending_clarification'|'default' }>}
+ * @returns {Promise<{ category: string, source: 'memory'|'dictionary'|'llm'|'pending_clarification'|'default' }>}
  */
 async function categorizeTransaction(txn, userId, supabase) {
   const merchantName = txn.merchant || txn.upi_id || 'Unknown';
@@ -51,7 +51,17 @@ async function categorizeTransaction(txn, userId, supabase) {
     return { category: 'pending_clarification', source: 'pending_clarification' };
   }
 
-  // 4. Default for unknown merchants
+  // 4. Use Gemini to infer category from merchant/description (e.g. "restaurant" → Food & Dining)
+  try {
+    const llmCategory = await inferCategoryWithLLM(merchantName, txn.amount ?? null);
+    if (llmCategory) {
+      return { category: llmCategory, source: 'llm' };
+    }
+  } catch (err) {
+    console.error('LLM category inference failed:', err.message);
+  }
+
+  // 5. Default for unknown merchants
   return { category: 'Other', source: 'default' };
 }
 
