@@ -1,6 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useDailyTrend } from '../hooks/useTransactions';
 import { format } from 'date-fns';
+import { colors } from '../theme';
 
 function formatAmount(n) {
   return new Intl.NumberFormat('en-IN', {
@@ -14,9 +15,16 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
-    <div className="bg-slate-800 text-white text-sm rounded-lg shadow-lg px-3 py-2 border-0">
-      <p className="text-slate-300">{label}</p>
-      <p className="text-teal-300 font-semibold">{formatAmount(item.value)}</p>
+    <div
+      className="rounded-lg px-3 py-2 shadow-xl border"
+      style={{
+        background: colors.inputBg,
+        borderColor: 'rgba(0,212,160,0.3)',
+        fontFamily: 'JetBrains Mono, monospace',
+      }}
+    >
+      <p className="text-xs" style={{ color: colors.textSecondary }}>{label}</p>
+      <p className="text-sm font-semibold" style={{ color: colors.mint }}>{formatAmount(item.value)}</p>
     </div>
   );
 };
@@ -26,15 +34,21 @@ export function WeeklyTrend({ days = 7 }) {
 
   if (loading) {
     return (
-      <div className="h-56 flex items-center justify-center bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="animate-spin w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full" />
+      <div
+        className="h-64 flex items-center justify-center rounded-2xl border animate-pulse"
+        style={{ background: colors.cardBg, borderColor: colors.cardBorder }}
+      >
+        <div className="w-8 h-8 border-2 rounded-full border-t-transparent" style={{ borderColor: colors.mint }} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-56 flex items-center justify-center bg-red-50 rounded-2xl text-red-600 text-sm border border-red-100">
+      <div
+        className="h-64 flex items-center justify-center rounded-2xl border text-sm"
+        style={{ background: colors.cardBg, borderColor: colors.cardBorder, color: colors.orange }}
+      >
         {error}
       </div>
     );
@@ -44,29 +58,46 @@ export function WeeklyTrend({ days = 7 }) {
     ...d,
     label: format(new Date(d.date), 'EEE d'),
   }));
+  const maxAmount = Math.max(...trend.map((d) => d.amount), 1);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
-      <h3 className="font-semibold text-slate-800 mb-4">Daily Spend (Last {days} days)</h3>
+    <div
+      className="rounded-2xl border p-6 transition-all duration-200 hover:border-[rgba(0,212,160,0.2)] hover:-translate-y-0.5"
+      style={{ background: colors.cardBg, borderColor: colors.cardBorder, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
+    >
+      <h3 className="text-sm font-medium mb-4" style={{ color: colors.textSecondary }}>Daily Spend — Last {days} Days</h3>
       <div className="w-full" style={{ height: 224, minHeight: 224 }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <BarChart
-            data={chartData}
-            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} />
-            <YAxis tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(v) => `₹${v / 1000}k`} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(13, 148, 136, 0.08)' }} />
+          <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 12, fill: colors.textSecondary }}
+              axisLine={{ stroke: colors.cardBorder }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 12, fill: colors.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}
+              tickFormatter={(v) => `₹${v >= 1000 ? `${v / 1000}k` : v}`}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,212,160,0.08)' }} />
             <Bar
               dataKey="amount"
-              fill="#0d9488"
+              fill={`url(#barGradient)`}
               radius={[6, 6, 0, 0]}
               maxBarSize={48}
               animationDuration={500}
               animationBegin={0}
               isAnimationActive
             />
+            <defs>
+              <linearGradient id="barGradient" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor={colors.blue} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={colors.mint} stopOpacity={1} />
+              </linearGradient>
+            </defs>
           </BarChart>
         </ResponsiveContainer>
       </div>

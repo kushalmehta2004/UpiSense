@@ -1,5 +1,7 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
+
+const MINT = '#00D4A0';
 
 export function ProtectedRoute({ children }) {
   const { user, loading, initialized } = useAuthStore();
@@ -7,8 +9,8 @@ export function ProtectedRoute({ children }) {
 
   if (!initialized || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin w-10 h-10 border-2 border-[#00a651] border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
+        <div className="animate-spin w-10 h-10 border-2 rounded-full border-t-transparent" style={{ borderColor: MINT }} />
       </div>
     );
   }
@@ -17,5 +19,5 @@ export function ProtectedRoute({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return children;
+  return children ?? <Outlet />;
 }

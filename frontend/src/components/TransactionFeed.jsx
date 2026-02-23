@@ -1,7 +1,9 @@
-import { format, subDays, startOfWeek, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { format, startOfWeek, startOfMonth, subMonths } from 'date-fns';
 import { useTransactions } from '../hooks/useTransactions';
 import { useEffect, useState } from 'react';
+import { Search } from 'lucide-react';
 import { categories } from '../utils/api';
+import { colors, getCategoryColor } from '../theme';
 
 const TIME_PRESETS = [
   { value: '', label: 'All time', from: null, to: null },
@@ -22,26 +24,74 @@ function formatAmount(amount) {
   }).format(n);
 }
 
-function TransactionItem({ txn }) {
+const CATEGORY_EMOJI = {
+  'Food & Dining': '🍽️',
+  'Food Delivery': '🍕',
+  Transport: '🚗',
+  Shopping: '🛍️',
+  Groceries: '🛒',
+  Health: '💊',
+  Utilities: '💡',
+  Other: '📌',
+};
+
+function TransactionItem({ txn, cardStyle = false }) {
   const date = txn.timestamp || txn.created_at;
+  const catColor = getCategoryColor(txn.category);
+  const emoji = CATEGORY_EMOJI[txn.category] || '📌';
+
+  const content = (
+    <>
+      <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0"
+          style={{ background: `${catColor}20` }}
+        >
+          {emoji}
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold truncate" style={{ color: colors.text, fontSize: 15 }}>
+            {txn.merchant_name || 'Unknown'}
+          </p>
+          <span
+            className="inline-block text-xs px-2 py-0.5 rounded-full mt-0.5"
+            style={{ background: `${catColor}25`, color: catColor }}
+          >
+            {txn.category || 'Uncategorized'}
+          </span>
+          {date && (
+            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+              {format(new Date(date), 'MMM d · h:mm a')}
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="font-mono font-bold tabular-nums shrink-0" style={{ color: colors.orange, fontSize: cardStyle ? 18 : 15 }}>
+        -{formatAmount(txn.amount)}
+      </p>
+    </>
+  );
+
+  if (cardStyle) {
+    return (
+      <div
+        className="flex justify-between items-center py-4 px-5 rounded-xl border transition-all duration-200 hover:border-[rgba(0,212,160,0.15)] hover:-translate-y-px"
+        style={{
+          background: colors.cardBg,
+          borderColor: 'rgba(255,255,255,0.04)',
+        }}
+      >
+        {content}
+      </div>
+    );
+  }
+
   return (
     <div
-      key={txn.id}
-      className="flex justify-between items-start p-4 bg-white rounded-xl border border-slate-200 hover:border-teal-200 hover:shadow-md transition-all duration-200 cursor-default"
+      className="flex justify-between items-center py-4 border-b border-white/5 last:border-0 transition-colors hover:bg-white/[0.02]"
+      style={{ paddingLeft: 4, paddingRight: 4 }}
     >
-      <div>
-        <p className="font-semibold text-slate-800">{txn.merchant_name || 'Unknown'}</p>
-        <p className="text-sm text-slate-500">{txn.category || 'Uncategorized'}</p>
-        {txn.notes && (
-          <p className="text-sm text-slate-600 mt-0.5 italic">&quot;{txn.notes}&quot;</p>
-        )}
-        {date && (
-          <p className="text-xs text-slate-400 mt-0.5">
-            {format(new Date(date), 'MMM d, yyyy · h:mm a')}
-          </p>
-        )}
-      </div>
-      <p className="font-bold text-teal-600">{formatAmount(txn.amount)}</p>
+      {content}
     </div>
   );
 }
@@ -74,6 +124,11 @@ export function TransactionFeed({ compact = false }) {
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const handleSearch = (e) => {
     e?.preventDefault?.();
     setSearch(searchInput);
@@ -92,104 +147,133 @@ export function TransactionFeed({ compact = false }) {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 rounded-xl text-red-700 text-sm">
+      <div
+        className="p-4 rounded-xl text-sm border"
+        style={{ background: 'rgba(249,115,22,0.1)', borderColor: 'rgba(249,115,22,0.3)', color: colors.orange }}
+      >
         {error}
       </div>
     );
   }
 
+  const showFilters = !compact;
+  const list = compact ? transactions.slice(0, 5) : transactions;
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap gap-2 items-center">
-          <form onSubmit={handleSearch} className="flex-1 min-w-[200px] flex gap-2">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search merchant, category..."
-              className="flex-1 px-4 py-2 rounded-xl border border-[#e2e8f0] focus:ring-2 focus:ring-[#0d9488] focus:border-[#0d9488] outline-none text-[#0f172a]"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition-colors font-medium shadow-sm"
+      {showFilters && (
+        <div className="flex flex-col gap-3">
+          <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
+            <div className="flex-1 min-w-[200px] relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onBlur={() => setSearch(searchInput)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border outline-none transition-colors focus:ring-2"
+                style={{
+                  background: colors.inputBg,
+                  borderColor: colors.inputBorder,
+                  color: colors.text,
+                }}
+                placeholder="Search merchant, category..."
+              />
+            </div>
+            <select
+              value={categoryFilter}
+              onChange={handleCategoryChange}
+              className="px-4 py-2.5 rounded-xl border outline-none min-w-[140px] focus:ring-2"
+              style={{
+                background: colors.inputBg,
+                borderColor: colors.inputBorder,
+                color: colors.text,
+              }}
             >
-              Search
-            </button>
+              <option value="">All categories</option>
+              {categoryOptions.map((c) => (
+                <option key={c.id || c.name} value={c.name}>{c.name}</option>
+              ))}
+            </select>
+            <select
+              value={timePreset}
+              onChange={handleTimePresetChange}
+              className="px-4 py-2.5 rounded-xl border outline-none min-w-[140px] focus:ring-2"
+              style={{
+                background: colors.inputBg,
+                borderColor: colors.inputBorder,
+                color: colors.text,
+              }}
+            >
+              {TIME_PRESETS.filter((p) => p.value !== 'custom').map((p) => (
+                <option key={p.value || 'all'} value={p.value}>{p.label}</option>
+              ))}
+              <option value="custom">Custom range</option>
+            </select>
           </form>
-          <select
-            value={categoryFilter}
-            onChange={handleCategoryChange}
-            className="px-4 py-2 rounded-xl border border-[#e2e8f0] focus:ring-2 focus:ring-[#0d9488] outline-none text-[#0f172a] min-w-[140px]"
-          >
-            <option value="">All categories</option>
-            {categoryOptions.map((c) => (
-              <option key={c.id || c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            value={timePreset}
-            onChange={handleTimePresetChange}
-            className="px-4 py-2 rounded-xl border border-[#e2e8f0] focus:ring-2 focus:ring-[#0d9488] outline-none text-[#0f172a] min-w-[140px]"
-          >
-            {TIME_PRESETS.filter((p) => p.value !== 'custom').map((p) => (
-              <option key={p.value || 'all'} value={p.value}>{p.label}</option>
-            ))}
-            <option value="custom">Custom range</option>
-          </select>
+          {timePreset === 'custom' && (
+            <div className="flex flex-wrap gap-2 items-center text-sm">
+              <label style={{ color: colors.textSecondary }}>From</label>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
+                className="px-3 py-2 rounded-lg border outline-none focus:ring-2"
+                style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
+              />
+              <label style={{ color: colors.textSecondary }}>To</label>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
+                className="px-3 py-2 rounded-lg border outline-none focus:ring-2"
+                style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
+              />
+            </div>
+          )}
         </div>
-        {timePreset === 'custom' && (
-          <div className="flex flex-wrap gap-2 items-center text-sm">
-            <label className="text-[#64748b]">From</label>
-            <input
-              type="date"
-              value={customFrom}
-              onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
-              className="px-3 py-2 rounded-lg border border-[#e2e8f0] focus:ring-2 focus:ring-[#0d9488] outline-none"
-            />
-            <label className="text-[#64748b]">To</label>
-            <input
-              type="date"
-              value={customTo}
-              onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
-              className="px-3 py-2 rounded-lg border border-[#e2e8f0] focus:ring-2 focus:ring-[#0d9488] outline-none"
-            />
-          </div>
-        )}
-      </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin w-8 h-8 border-2 border-[#0d9488] border-t-transparent rounded-full" />
+          <div
+            className="animate-spin w-8 h-8 border-2 rounded-full border-t-transparent"
+            style={{ borderColor: colors.mint }}
+          />
         </div>
-      ) : transactions.length === 0 ? (
-        <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-500 shadow-sm">
+      ) : list.length === 0 ? (
+        <div
+          className="p-8 text-center rounded-xl border"
+          style={{ background: colors.cardBg, borderColor: colors.cardBorder, color: colors.textSecondary }}
+        >
           No transactions in this period. Forward a UPI payment to your WhatsApp number to get started.
         </div>
       ) : (
-        <div className={`space-y-3 ${compact ? 'max-h-80 overflow-y-auto' : ''}`}>
-          {transactions.map((txn) => (
-            <TransactionItem key={txn.id} txn={txn} />
+        <div className={compact ? 'space-y-0 max-h-[360px] overflow-y-auto' : 'space-y-2'}>
+          {list.map((txn) => (
+            <TransactionItem key={txn.id} txn={txn} cardStyle={!compact} />
           ))}
         </div>
       )}
 
-      {!compact && pagination.totalPages > 1 && (
+      {!compact && pagination?.totalPages > 1 && (
         <div className="flex justify-center gap-2 pt-4">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="px-4 py-2 rounded-xl border border-[#e2e8f0] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f8fafb] text-[#0f172a]"
+            className="px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
           >
             Previous
           </button>
-          <span className="px-4 py-2 text-[#64748b]">
+          <span className="px-4 py-2" style={{ color: colors.textSecondary }}>
             Page {page} of {pagination.totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
             disabled={page >= pagination.totalPages}
-            className="px-4 py-2 rounded-xl border border-[#e2e8f0] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f8fafb] text-[#0f172a]"
+            className="px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
           >
             Next
           </button>
