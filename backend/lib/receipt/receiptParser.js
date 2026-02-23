@@ -75,8 +75,9 @@ No explanation, no markdown.`;
     let cleaned = text.trim();
     if (cleaned.startsWith('```')) cleaned = cleaned.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
     const parsed = JSON.parse(cleaned);
-    const amount = parsed.amount_inr != null ? parseFloat(parsed.amount_inr) : null;
-    if (amount == null || isNaN(amount)) return null;
+    const rawAmount = parsed.amount_inr != null ? parseFloat(parsed.amount_inr) : null;
+    if (rawAmount == null || isNaN(rawAmount)) return null;
+    const amount = Math.round(rawAmount * 100) / 100;
     return {
       amount,
       merchant: parsed.merchant_name || 'From receipt',

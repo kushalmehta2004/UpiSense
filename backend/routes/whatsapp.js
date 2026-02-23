@@ -85,6 +85,7 @@ const {
   setPendingSplit,
   handleSplitReply
 } = require('../lib/splitTransaction/splitTransactionService.js');
+const { amountForDb } = require('../lib/amountUtils.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -211,7 +212,7 @@ const plugin = async (fastify, options) => {
               const txnTimestamp = receipt.date ? `${receipt.date}T12:00:00.000Z` : new Date(timestamp * 1000).toISOString();
               const { data: txn } = await supabase.from('transactions').insert([{
                 user_id: userId,
-                amount: receipt.amount,
+                amount: amountForDb(receipt.amount),
                 merchant_name: receipt.merchant,
                 upi_id: receipt.merchant,
                 category: category || 'Other',
@@ -328,6 +329,35 @@ const plugin = async (fastify, options) => {
       }
       if (cmdUser) {
         const trimmedLower = text.trim().toLowerCase();
+        const trimmedText = text.trim();
+
+        // Two-name race: if user just answered "Who did you pay?" and a second message looks like another name, reconfirm
+        const looksLikeSingleName = /^[a-zA-Z][a-zA-Z\s]{0,49}$/.test(trimmedText) && trimmedText.split(/\s+/).length <= 2 && !/^\d+$/.test(trimmedText);
+        if (looksLikeSingleName) {
+          const { data: lastReply } = await supabase
+            .from('last_recipient_reply')
+            .select('amount, recipient_name, transaction_id, created_at')
+            .eq('user_id', cmdUser.id)
+            .maybeSingle();
+          if (lastReply) {
+            const ageSec = (Date.now() - new Date(lastReply.created_at).getTime()) / 1000;
+            if (ageSec <= 25) {
+              const secondName = trimmedText;
+              const firstName = lastReply.recipient_name;
+              await supabase.from('transactions').delete().eq('id', lastReply.transaction_id);
+              await supabase.from('last_recipient_reply').delete().eq('user_id', cmdUser.id);
+              const amt = amountForDb(lastReply.amount) ?? Number(lastReply.amount);
+              await supabase.from('pending_recipient_ask').upsert(
+                { user_id: cmdUser.id, amount: amt },
+                { onConflict: 'user_id' }
+              );
+              const amountDisplay = amt != null ? `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '₹?';
+              await sendWhatsAppText(senderId, `You sent two names (*${firstName}* and *${secondName}*). Who did you pay ${amountDisplay} to? Reply with *only one* name.`);
+              return reply.send({ success: true });
+            }
+          }
+        }
+
         // Pending "Who did you pay ₹X to?" — next message is recipient name; use stored amount
         const { data: pendingRecipient } = await supabase
           .from('pending_recipient_ask')
@@ -336,7 +366,7 @@ const plugin = async (fastify, options) => {
           .maybeSingle();
         if (pendingRecipient && text.trim()) {
           const recipientName = text.trim();
-          const amount = Number(pendingRecipient.amount);
+          const amount = amountForDb(pendingRecipient.amount) ?? Number(pendingRecipient.amount);
           if (amount == null || isNaN(amount) || amount <= 0) {
             await supabase.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
             await sendWhatsAppText(senderId, 'Please send the amount you paid (e.g. 500) first, then we\'ll ask who you paid it to.');
@@ -352,7 +382,7 @@ const plugin = async (fastify, options) => {
             .from('transactions')
             .insert([{
               user_id: cmdUser.id,
-              amount,
+              amount: amountForDb(amount),
               merchant_name: recipientName,
               upi_id: null,
               category: assignedCategory,
@@ -368,6 +398,12 @@ const plugin = async (fastify, options) => {
             await sendWhatsAppText(senderId, `❌ Could not save: ${txnErr.message}`);
             return reply.send({ success: true });
           }
+          await supabase.from('last_recipient_reply').upsert({
+            user_id: cmdUser.id,
+            amount: amountForDb(amount),
+            recipient_name: recipientName,
+            transaction_id: txn.id
+          }, { onConflict: 'user_id' });
           if (assignedCategory === 'pending_clarification') {
             try {
               await sendClarificationAndSavePending(supabase, {
@@ -583,7 +619,7 @@ const plugin = async (fastify, options) => {
                   .from('transactions')
                   .insert([{
                     user_id: cmdUser.id,
-                    amount: intent.amount,
+                    amount: amountForDb(intent.amount),
                     merchant_name: intent.merchant_name || 'Unknown',
                     upi_id: null,
                     category,
@@ -816,7 +852,7 @@ const plugin = async (fastify, options) => {
 
         const merchantStr = (parsed.merchant || parsed.upi_id || '').trim();
         const isUnknownMerchant = !merchantStr || merchantStr.toLowerCase() === 'unknown';
-        const amountNum = parsed.amount != null ? Number(parsed.amount) : null;
+        const amountNum = parsed.amount != null ? amountForDb(parsed.amount) : null;
         const validAmount = amountNum != null && amountNum > 0;
 
         if (isUnknownMerchant) {
@@ -824,11 +860,12 @@ const plugin = async (fastify, options) => {
             await sendWhatsAppText(senderId, 'Send the amount you paid (e.g. 500 or 99.50) and we\'ll ask who you paid it to.');
             return reply.send({ success: true });
           }
+          const amountToStore = amountForDb(amountNum) ?? amountNum;
           await supabase.from('pending_recipient_ask').upsert(
-            { user_id: userId, amount: amountNum },
+            { user_id: userId, amount: amountToStore },
             { onConflict: 'user_id' }
           );
-          const amountDisplay = `₹${amountNum.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+          const amountDisplay = `₹${(amountToStore ?? amountNum).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
           await sendWhatsAppText(senderId, `Who did you pay ${amountDisplay} to? Reply with the name or place so we can categorize it.`);
           return reply.send({ success: true });
         }
@@ -862,7 +899,7 @@ const plugin = async (fastify, options) => {
           .from('transactions')
           .insert([{
             user_id: userId,
-            amount: parsed.amount,
+            amount: amountForDb(parsed.amount),
             merchant_name: parsed.merchant || parsed.upi_id || 'Unknown',
             upi_id: parsed.upi_id,
             category: assignedCategory,
