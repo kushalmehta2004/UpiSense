@@ -22,21 +22,15 @@ export function LandingNav() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 border-b border-white/5 transition-all duration-300 ${scrolled ? 'bg-[#0A0F1E]/85 backdrop-blur-[20px]' : ''}`}
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-        <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight" style={{ fontFamily: 'Clash Display, sans-serif' }}>
-          <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden"
-            style={{ background: DARK }}
-          >
-            <img
-              src={logoSrc}
-              alt="UpiSense"
-              className="h-12 w-12 w-full object-contain object-center"
-              style={logoSrc.endsWith('.png') ? { mixBlendMode: 'multiply' } : {}}
-              onError={() => setLogoSrc('/logo.svg')}
-            />
-          </span>
-          <span style={{ color: TEXT }}>UpiSense</span>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20 min-h-[5rem]">
+        <Link to="/" className="flex items-center gap-3 font-bold text-xl tracking-tight" style={{ fontFamily: 'Clash Display, sans-serif' }}>
+          <img
+            src={logoSrc}
+            alt="UpiSense"
+            className="h-14 w-14 shrink-0 object-contain object-center rounded-xl"
+            onError={() => setLogoSrc('/logo.svg')}
+          />
+          <span className="text-xl sm:text-2xl" style={{ color: TEXT }}>UpiSense</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
           <a href="#how-it-works" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>How it works</a>

@@ -1,10 +1,10 @@
 # Logo
 
-The site uses **logo.png** in this folder if it exists; otherwise it falls back to **logo.svg**.
+The app uses **logo.png** from this folder everywhere (sidebar, landing nav, login, header).
 
-To use the generated UpiSense logo (teal icon with U + trend):
+**To use your logo image:**
+1. Save your logo image as `logo.png` in this folder (`frontend/public/`).
+2. Replace any existing `logo.png` if present.
+3. No code changes needed — all pages load `/logo.png` by default.
 
-1. Save the generated logo image as `logo.png` in this folder (`frontend/public/`).
-2. The header and favicon will automatically use it. No code changes needed.
-
-If you don't have logo.png, the SVG fallback (logo.svg) is used.
+If `logo.png` fails to load, the app falls back to `logo.svg`.

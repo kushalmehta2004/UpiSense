@@ -37,12 +37,12 @@ export function Header() {
   return (
     <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-10 shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-14">
+        <div className="flex items-center justify-between h-16 min-h-[4rem] py-2">
           <Link to="/dashboard" className="flex items-center gap-2.5 group">
             <img
               src={logoSrc}
               alt="UpiSense"
-              className="h-9 w-9 object-contain"
+              className="h-10 w-10 object-contain rounded-xl"
               onError={() => setLogoSrc('/logo.svg')}
             />
             <span className="text-xl font-bold bg-gradient-to-r from-teal-600 to-teal-500 bg-clip-text text-transparent group-hover:from-teal-500 group-hover:to-teal-400 transition-all duration-200">UpiSense</span>
