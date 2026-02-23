@@ -13,26 +13,19 @@ export function Header() {
     setMenuOpen(false);
   };
 
+  const navClass = 'block py-2 sm:py-0 text-[#64748b] hover:text-[#0d9488] transition-colors';
   const navLinks = (
     <>
-      <Link to="/" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
-        Dashboard
-      </Link>
-      <Link to="/transactions" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
-        Transactions
-      </Link>
-      <Link to="/debts" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
-        Debts
-      </Link>
-      <Link to="/settings" className="block py-2 sm:py-0 text-slate-600 hover:text-[#00a651] transition-colors" onClick={() => setMenuOpen(false)}>
-        Settings
-      </Link>
+      <Link to="/" className={navClass} onClick={() => setMenuOpen(false)}>Dashboard</Link>
+      <Link to="/transactions" className={navClass} onClick={() => setMenuOpen(false)}>Transactions</Link>
+      <Link to="/debts" className={navClass} onClick={() => setMenuOpen(false)}>Debts</Link>
+      <Link to="/settings" className={navClass} onClick={() => setMenuOpen(false)}>Settings</Link>
       {user && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-          <span className="text-sm text-slate-500">{user.phone}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0]">
+          <span className="text-sm text-[#64748b]">{user.name && user.name !== 'User' ? user.name : user.phone}</span>
           <button
             onClick={handleLogout}
-            className="text-sm text-slate-600 hover:text-red-600 transition-colors text-left sm:text-center"
+            className="text-sm text-[#64748b] hover:text-red-600 transition-colors text-left sm:text-center"
           >
             Logout
           </button>
@@ -42,18 +35,19 @@ export function Header() {
   );
 
   return (
-    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
+    <header className="bg-white border-b border-[#e2e8f0] sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-[#00a651]">UpiSense</span>
+            <img src="/logo.svg" alt="UpiSense" className="h-8 w-auto" />
+            <span className="text-xl font-bold text-[#0d9488]">UpiSense</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-6">
             {navLinks}
           </nav>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="sm:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+            className="sm:hidden p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg"
             aria-label="Toggle menu"
           >
             {menuOpen ? (
@@ -68,7 +62,7 @@ export function Header() {
           </button>
         </div>
         {menuOpen && (
-          <div className="sm:hidden py-4 space-y-1 border-t border-slate-100">
+          <div className="sm:hidden py-4 space-y-1 border-t border-[#f1f5f9]">
             {navLinks}
           </div>
         )}

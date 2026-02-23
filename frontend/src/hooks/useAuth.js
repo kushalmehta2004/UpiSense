@@ -29,7 +29,16 @@ export const useAuthStore = create((set) => ({
         try {
           const { data } = await auth.verifyToken();
           if (data.valid) {
-            const user = JSON.parse(stored);
+            let user = JSON.parse(stored);
+            try {
+              const profileRes = await auth.profile();
+              if (profileRes.data?.user) {
+                user = profileRes.data.user;
+                localStorage.setItem('upisense_user', JSON.stringify(user));
+              }
+            } catch (_) {
+              // keep stored user if profile fetch fails
+            }
             set({ user, token, loading: false, initialized: true });
             return true;
           }
@@ -39,6 +48,15 @@ export const useAuthStore = create((set) => ({
         }
         set({ user: null, token: null, loading: false, initialized: true });
         return false;
+      },
+
+      updateUser: (updates) => {
+        set((state) => {
+          if (!state.user) return state;
+          const user = { ...state.user, ...updates };
+          localStorage.setItem('upisense_user', JSON.stringify(user));
+          return { user };
+        });
       },
 
       setLoading: (loading) => set({ loading }),

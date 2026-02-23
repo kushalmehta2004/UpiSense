@@ -2,8 +2,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 import { useTransactionsSummary } from '../hooks/useTransactions';
 
 const COLORS = [
-  '#00a651', '#4ECDC4', '#FF6B6B', '#FFE66D', '#AA96DA',
-  '#95E1D3', '#F38181', '#6C5CE7', '#FD79A8', '#00B894',
+  '#0d9488', '#4ECDC4', '#64748b', '#94a3b8', '#cbd5e1',
+  '#0f766e', '#5eead4', '#2dd4bf', '#99f6e4', '#14b8a6',
 ];
 
 function formatAmount(n) {
@@ -19,15 +19,15 @@ export function CategoryChart({ from, to }) {
 
   if (loading) {
     return (
-      <div className="h-64 flex items-center justify-center bg-white rounded-xl border border-slate-100">
-        <div className="animate-spin w-8 h-8 border-2 border-[#00a651] border-t-transparent rounded-full" />
+      <div className="h-64 flex items-center justify-center bg-white rounded-2xl border border-[#e2e8f0]">
+        <div className="animate-spin w-8 h-8 border-2 border-[#0d9488] border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-64 flex items-center justify-center bg-red-50 rounded-xl text-red-600">
+      <div className="h-64 flex items-center justify-center bg-red-50 rounded-2xl text-red-600 text-sm">
         {error}
       </div>
     );
@@ -42,15 +42,15 @@ export function CategoryChart({ from, to }) {
 
   if (data.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center bg-slate-50 rounded-xl text-slate-600">
+      <div className="h-64 flex items-center justify-center bg-[#f8fafb] rounded-2xl text-[#64748b] text-sm">
         No spending data for this period
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-100 p-4">
-      <h3 className="font-semibold text-slate-800 mb-4">Category Breakdown</h3>
+    <div className="bg-white rounded-2xl border border-[#e2e8f0] p-4 shadow-sm">
+      <h3 className="font-semibold text-[#0f172a] mb-4">Category Breakdown</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -73,8 +73,8 @@ export function CategoryChart({ from, to }) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-center text-sm text-slate-500 mt-2">
-        Total: <span className="font-semibold text-slate-800">{formatAmount(total)}</span>
+      <p className="text-center text-sm text-[#64748b] mt-2">
+        Total: <span className="font-semibold text-[#0f172a]">{formatAmount(total)}</span>
       </p>
     </div>
   );

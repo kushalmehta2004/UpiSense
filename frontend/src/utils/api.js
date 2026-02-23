@@ -35,6 +35,7 @@ export const auth = {
   signup: (phone, name) => api.post('/auth/signup', { phone, name }),
   verify: (phone, otp) => api.post('/auth/verify', { phone, otp }),
   profile: () => api.get('/auth/profile'),
+  updateProfile: (data) => api.patch('/auth/profile', data),
   logout: () => api.post('/auth/logout'),
   verifyToken: () => api.get('/auth/verify-token'),
 };

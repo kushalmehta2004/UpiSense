@@ -63,7 +63,7 @@ const plugin = async (fastify, options) => {
    * Response: { success: true, token: string, user: {...} }
    */
   fastify.post('/auth/verify', async (request, reply) => {
-    const { phone, otp } = request.body;
+    const { phone, otp, name: nameFromBody } = request.body || {};
 
     if (!phone || !otp) {
       return reply.code(400).send({ error: 'Missing phone or OTP' });
@@ -104,7 +104,7 @@ const plugin = async (fastify, options) => {
           .insert([{
             phone: phoneStored,
             whatsapp_number: whatsappNumber,
-            name: `User_${phone.slice(-4)}`,
+            name: (nameFromBody && String(nameFromBody).trim()) ? String(nameFromBody).trim().slice(0, 255) : 'User',
             plan: 'free'
           }])
           .select('*')
@@ -174,9 +174,7 @@ const plugin = async (fastify, options) => {
    */
   fastify.get('/auth/profile', async (request, reply) => {
     try {
-      // Verify JWT token
       await request.jwtVerify();
-      
       const { userId } = request.user;
 
       const { data: user, error } = await supabase
@@ -200,6 +198,50 @@ const plugin = async (fastify, options) => {
         return reply.code(401).send({ error: 'Unauthorized - missing or invalid token' });
       }
       console.error('❌ Profile error:', error.message);
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
+  });
+
+  /**
+   * PATCH /auth/profile
+   * Update current user profile (name, etc.). Requires JWT.
+   * Body: { name?: string }
+   */
+  fastify.patch('/auth/profile', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const { userId } = request.user;
+      const { name } = request.body || {};
+
+      const updates = {};
+      if (typeof name === 'string') {
+        const trimmed = name.trim().slice(0, 255);
+        if (trimmed) updates.name = trimmed;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        const { data: user } = await supabase.from('users').select('id, phone, name, plan, whatsapp_number, created_at').eq('id', userId).single();
+        return reply.send({ success: true, user: user || {} });
+      }
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+        .select('id, phone, name, plan, whatsapp_number, created_at')
+        .single();
+
+      if (error) {
+        console.error('❌ Profile update error:', error.message);
+        return reply.code(500).send({ error: 'Failed to update profile' });
+      }
+
+      return reply.send({ success: true, user });
+    } catch (error) {
+      if (error.message.includes('Authorization')) {
+        return reply.code(401).send({ error: 'Unauthorized - missing or invalid token' });
+      }
+      console.error('❌ Profile update error:', error.message);
       return reply.code(401).send({ error: 'Unauthorized' });
     }
   });

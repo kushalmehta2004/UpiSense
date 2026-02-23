@@ -195,7 +195,7 @@ const plugin = async (fastify, options) => {
               const { data: newUser } = await supabase.from('users').insert([{
                 whatsapp_number: canonicalPhone,
                 phone: canonicalPhone,
-                name: `User_${canonicalPhone.slice(-4)}`,
+                name: `User`,
                 plan: 'free'
               }]).select('id').single();
               if (newUser) {
@@ -322,7 +322,7 @@ const plugin = async (fastify, options) => {
         const { data: newU, error } = await supabase.from('users').insert([{
           whatsapp_number: canonicalPhone,
           phone: canonicalPhone,
-          name: `User_${canonicalPhone.slice(-4)}`,
+          name: `User`,
           plan: 'free'
         }]).select('id').single();
         if (!error && newU) cmdUser = newU;
@@ -819,7 +819,7 @@ const plugin = async (fastify, options) => {
             .insert([{
               whatsapp_number: canonicalPhone,
               phone: canonicalPhone,
-              name: `User_${canonicalPhone.slice(-4)}`,
+              name: `User`,
               plan: 'free'
             }])
             .select('id')
