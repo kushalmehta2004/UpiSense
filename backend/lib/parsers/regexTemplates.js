@@ -79,10 +79,17 @@ const templates = {
     confidence: 0.90
   },
   user_paid_to_simple: {
-    pattern: /(?:i\s+)?paid\s+([\d,]+)\s+to\s+(\S+)/i,
+    pattern: /(?:i\s+)?paid\s+([\d,]+(?:\.\d{1,2})?)\s+to\s+(\S+)/i,
     fields: ['amount', 'merchant'],
     sourceApp: 'user',
     confidence: 0.85
+  },
+  // "99.50" or "5" only – amount with no recipient; we'll ask who
+  user_just_amount: {
+    pattern: /^\s*([\d,]+(?:\.\d{1,2})?)\s*$/,
+    fields: ['amount'],
+    sourceApp: 'user',
+    confidence: 0.80
   },
   // "200 to restaurant" (no "paid") – NLP-friendly
   user_amount_to: {
@@ -102,9 +109,11 @@ const templates = {
 
 function normalizeAmount(amountStr) {
   if (!amountStr) return null;
-  const cleaned = amountStr.replace(/,/g, '');
+  const cleaned = String(amountStr).replace(/,/g, '');
   const num = parseFloat(cleaned);
-  return isNaN(num) ? null : num;
+  if (isNaN(num)) return null;
+  // Preserve up to 2 decimal places; avoid rounding to integer
+  return Math.round(num * 100) / 100;
 }
 
 function parseTransaction(text) {

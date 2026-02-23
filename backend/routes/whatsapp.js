@@ -9,7 +9,10 @@ const {
   parseClarificationReply,
   handleClarificationReply,
   handleNoteReply,
-  getAskForNoteMessage
+  getAskForNoteMessage,
+  getCategoryForOptionIndex,
+  getLabelForOptionIndex,
+  buildReceiptCategoryMessage
 } = require('../lib/whatsapp/clarificationFlow.js');
 const { sendWhatsAppText } = require('../lib/whatsapp/sendMessage.js');
 const { getHelpMessage } = require('../lib/whatsapp/helpMessage.js');
@@ -218,7 +221,11 @@ const plugin = async (fastify, options) => {
                 timestamp: txnTimestamp
               }]).select('id').single();
               if (txn) {
-                await sendWhatsAppText(senderId, `✅ Recorded from receipt: ₹${receipt.amount.toLocaleString('en-IN')} to *${receipt.merchant}* (${category || 'Other'})`);
+                await supabase.from('pending_category_confirmation').upsert(
+                  { user_id: userId, transaction_id: txn.id },
+                  { onConflict: 'user_id' }
+                );
+                await sendWhatsAppText(senderId, `✅ Recorded: ₹${receipt.amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} to *${receipt.merchant}*.\n\n${buildReceiptCategoryMessage()}`);
                 const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, category || 'Other', receipt.amount);
                 if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
                 if (justCreatedUser) {
@@ -330,6 +337,11 @@ const plugin = async (fastify, options) => {
         if (pendingRecipient && text.trim()) {
           const recipientName = text.trim();
           const amount = Number(pendingRecipient.amount);
+          if (amount == null || isNaN(amount) || amount <= 0) {
+            await supabase.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
+            await sendWhatsAppText(senderId, 'Please send the amount you paid (e.g. 500) first, then we\'ll ask who you paid it to.');
+            return reply.send({ success: true });
+          }
           await supabase.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
           const { category: assignedCategory, source: categorySource } = await categorizeTransaction(
             { merchant: recipientName, upi_id: null, is_p2p: true, amount },
@@ -394,6 +406,17 @@ const plugin = async (fastify, options) => {
         const { data: pendingCat } = await supabase.from('pending_category_confirmation').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
         if (pendingCat) {
           const trimmed = text.trim().toLowerCase();
+          const choiceNum = parseClarificationReply(text);
+          if (choiceNum !== null) {
+            const categoryFromOption = getCategoryForOptionIndex(choiceNum);
+            const labelFromOption = getLabelForOptionIndex(choiceNum);
+            const { error: updErr } = await supabase.from('transactions').update({ category: categoryFromOption }).eq('id', pendingCat.transaction_id);
+            if (!updErr) {
+              await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+              await sendWhatsAppText(senderId, `✅ Saved as *${labelFromOption}*.`);
+            }
+            return reply.send({ success: true });
+          }
           if (trimmed === 'yes' || trimmed === 'y') {
             await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
             await sendWhatsAppText(senderId, '✅ Got it! Category confirmed.');
@@ -793,15 +816,26 @@ const plugin = async (fastify, options) => {
 
         const merchantStr = (parsed.merchant || parsed.upi_id || '').trim();
         const isUnknownMerchant = !merchantStr || merchantStr.toLowerCase() === 'unknown';
+        const amountNum = parsed.amount != null ? Number(parsed.amount) : null;
+        const validAmount = amountNum != null && amountNum > 0;
+
         if (isUnknownMerchant) {
-          const amountDisplay = parsed.amount != null ? `₹${Number(parsed.amount).toLocaleString('en-IN')}` : '₹?';
-          if (parsed.amount != null && Number(parsed.amount) > 0) {
-            await supabase.from('pending_recipient_ask').upsert(
-              { user_id: userId, amount: Number(parsed.amount) },
-              { onConflict: 'user_id' }
-            );
+          if (!validAmount) {
+            await sendWhatsAppText(senderId, 'Send the amount you paid (e.g. 500 or 99.50) and we\'ll ask who you paid it to.');
+            return reply.send({ success: true });
           }
+          await supabase.from('pending_recipient_ask').upsert(
+            { user_id: userId, amount: amountNum },
+            { onConflict: 'user_id' }
+          );
+          const amountDisplay = `₹${amountNum.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
           await sendWhatsAppText(senderId, `Who did you pay ${amountDisplay} to? Reply with the name or place so we can categorize it.`);
+          return reply.send({ success: true });
+        }
+
+        // Reject 0 or null amount for known merchant
+        if (!validAmount) {
+          await sendWhatsAppText(senderId, 'Please send a valid amount (e.g. 500).');
           return reply.send({ success: true });
         }
 

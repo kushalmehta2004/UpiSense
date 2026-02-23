@@ -49,7 +49,8 @@ Output schema (use exactly these field names):
 - type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "none"
 - amount: number (INR) – required for all except type "none"
 - For type "transaction": merchant_name (required – who/where; if unknown use "none" type), category. Always use "Food & Dining" for restaurant, cafe, dinner, food, eatery, bar, pub. Use "Transport" for cab, auto, uber, ola. Use "Health" for pharmacy, medicine.
-- If the recipient is clearly a person's name (e.g. John, Raj, Priya, mom, dad) and NOT a business/place, add "is_p2p": true so we ask what it was for.
+- If the user says what the payment was for (e.g. "for dinner", "for groceries", "for petrol"), infer the category from that and set "is_p2p": false so we do NOT ask what it was for. E.g. "I paid Rachit 200 for dinner" → category "Food & Dining", merchant_name "Rachit", is_p2p false. "Paid John 500 for groceries" → category "Groceries", is_p2p false.
+- If the recipient is clearly a person's name and the user did NOT state what it was for, add "is_p2p": true so we ask what it was for.
 - For "500" alone or message with only an amount and no recipient, return {"type":"none"} – do not guess.
 - For type "group_expense": group_name, description, shares (array or null). "friend owes me 200" = friend's share 200; "I owe 100 to Samkit" = my share 100. Sum of shares = amount.
 - For type "owed_to_me": person_name (who owes the user). E.g. "Samkit owes me 500" → person_name "Samkit", amount 500. "Someone owes me 200" → person_name "Someone".
@@ -57,6 +58,8 @@ Output schema (use exactly these field names):
 
 Examples:
 - "100 to john" → {"type":"transaction","amount":100,"merchant_name":"john","category":"Other","is_p2p":true}
+- "I paid Rachit 200 for dinner" → {"type":"transaction","amount":200,"merchant_name":"Rachit","category":"Food & Dining","is_p2p":false}
+- "Paid 500 for groceries to mom" → {"type":"transaction","amount":500,"merchant_name":"mom","category":"Groceries","is_p2p":false}
 - "500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
 - "Paid 500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
 - "500" only or just a number with no recipient → {"type":"none"}

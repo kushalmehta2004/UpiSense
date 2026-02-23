@@ -10,6 +10,22 @@ const { saveToMerchantMemory } = require('../categorization/categorizeTransactio
 const OTHER_OPTION_INDEX = 6; // "Other" is option 6
 
 /**
+ * Build "What was this receipt for?" message with 1–6 options (same as P2P)
+ */
+function buildReceiptCategoryMessage() {
+  const lines = [
+    'What was this receipt for?',
+    ''
+  ];
+  P2P_CLARIFICATION_OPTIONS.forEach((opt, i) => {
+    lines.push(`${i + 1}️⃣ ${opt.label}`);
+  });
+  lines.push('');
+  lines.push('Reply with the number (1–6).');
+  return lines.join('\n');
+}
+
+/**
  * Build clarification message text
  */
 function buildClarificationMessage(merchantName) {
@@ -145,6 +161,7 @@ function getAskForNoteMessage() {
 
 module.exports = {
   buildClarificationMessage,
+  buildReceiptCategoryMessage,
   sendClarificationAndSavePending,
   parseClarificationReply,
   getCategoryForOptionIndex,
