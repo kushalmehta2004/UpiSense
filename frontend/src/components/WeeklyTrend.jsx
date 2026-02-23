@@ -58,7 +58,6 @@ export function WeeklyTrend({ days = 7, from, to }) {
     ...d,
     label: format(new Date(d.date), 'EEE d'),
   }));
-  const maxAmount = Math.max(...trend.map((d) => d.amount), 1);
 
   return (
     <div
