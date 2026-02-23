@@ -285,8 +285,9 @@ const plugin = async (fastify, options) => {
             await sendWhatsAppText(senderId, getAskForNoteMessage());
             console.log('📤 Asked user for note (Other selected)');
           } else {
-            await sendWhatsAppText(senderId, `✅ Saved as *${result.category}*. Future payments to this person will use this category.`);
-            console.log(`📥 Clarification: user chose ${choice} → ${result.category}`);
+            const displayCategory = result.label ?? result.category;
+            await sendWhatsAppText(senderId, `✅ Saved as *${displayCategory}*. Future payments to this person will use this category.`);
+            console.log(`📥 Clarification: user chose ${choice} → ${result.category} (label: ${result.label})`);
           }
           return reply.send({ success: true });
         }
@@ -320,6 +321,59 @@ const plugin = async (fastify, options) => {
       }
       if (cmdUser) {
         const trimmedLower = text.trim().toLowerCase();
+        // Pending "Who did you pay ₹X to?" — next message is recipient name; use stored amount
+        const { data: pendingRecipient } = await supabase
+          .from('pending_recipient_ask')
+          .select('amount')
+          .eq('user_id', cmdUser.id)
+          .maybeSingle();
+        if (pendingRecipient && text.trim()) {
+          const recipientName = text.trim();
+          const amount = Number(pendingRecipient.amount);
+          await supabase.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
+          const { category: assignedCategory, source: categorySource } = await categorizeTransaction(
+            { merchant: recipientName, upi_id: null, is_p2p: true, amount },
+            cmdUser.id,
+            supabase
+          );
+          const { data: txn, error: txnErr } = await supabase
+            .from('transactions')
+            .insert([{
+              user_id: cmdUser.id,
+              amount,
+              merchant_name: recipientName,
+              upi_id: null,
+              category: assignedCategory,
+              source_app: 'whatsapp',
+              parse_method: 'pending_recipient_reply',
+              confidence: 0.9,
+              timestamp: new Date().toISOString()
+            }])
+            .select('id')
+            .single();
+          if (txnErr) {
+            console.error('❌ Error storing pending-recipient transaction:', txnErr.message);
+            await sendWhatsAppText(senderId, `❌ Could not save: ${txnErr.message}`);
+            return reply.send({ success: true });
+          }
+          if (assignedCategory === 'pending_clarification') {
+            try {
+              await sendClarificationAndSavePending(supabase, {
+                userId: cmdUser.id,
+                whatsappNumber: senderId,
+                transactionId: txn.id,
+                merchantName: recipientName,
+                upiId: null
+              });
+            } catch (e) {
+              console.error('Clarification send failed:', e.message);
+              await sendWhatsAppText(senderId, `✔ Recorded: ₹${amount.toLocaleString('en-IN')} to ${recipientName}. We'll categorize it later.`);
+            }
+          } else {
+            await sendWhatsAppText(senderId, `✔ Recorded: ₹${amount.toLocaleString('en-IN')} to ${recipientName} (${assignedCategory})`);
+          }
+          return reply.send({ success: true });
+        }
         if (isHelpCmd) {
           await sendWhatsAppText(senderId, getHelpMessage());
           return reply.send({ success: true });
@@ -741,6 +795,12 @@ const plugin = async (fastify, options) => {
         const isUnknownMerchant = !merchantStr || merchantStr.toLowerCase() === 'unknown';
         if (isUnknownMerchant) {
           const amountDisplay = parsed.amount != null ? `₹${Number(parsed.amount).toLocaleString('en-IN')}` : '₹?';
+          if (parsed.amount != null && Number(parsed.amount) > 0) {
+            await supabase.from('pending_recipient_ask').upsert(
+              { user_id: userId, amount: Number(parsed.amount) },
+              { onConflict: 'user_id' }
+            );
+          }
           await sendWhatsAppText(senderId, `Who did you pay ${amountDisplay} to? Reply with the name or place so we can categorize it.`);
           return reply.send({ success: true });
         }

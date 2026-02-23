@@ -59,11 +59,16 @@ function parseClarificationReply(text) {
 }
 
 /**
- * Get category for option index (1-based)
+ * Get category and label for option index (1-based). Use label in user-facing messages.
  */
 function getCategoryForOptionIndex(index) {
   const opt = P2P_CLARIFICATION_OPTIONS[index - 1];
   return opt ? opt.category : 'Other';
+}
+
+function getLabelForOptionIndex(index) {
+  const opt = P2P_CLARIFICATION_OPTIONS[index - 1];
+  return opt ? opt.label : 'Other';
 }
 
 /**
@@ -101,7 +106,8 @@ async function handleClarificationReply(supabase, userId, choiceIndex, pendingRo
     .delete()
     .eq('user_id', userId);
 
-  return { done: true, category };
+  const label = getLabelForOptionIndex(choiceIndex);
+  return { done: true, category, label };
 }
 
 /**
@@ -142,6 +148,7 @@ module.exports = {
   sendClarificationAndSavePending,
   parseClarificationReply,
   getCategoryForOptionIndex,
+  getLabelForOptionIndex,
   handleClarificationReply,
   handleNoteReply,
   getAskForNoteMessage,
