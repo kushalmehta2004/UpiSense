@@ -17,6 +17,10 @@ const cards = [
     examples: [
       { who: 'user', text: '[forwarded] Paid ₹380 to Zomato via GPay. UPI Ref: 409234' },
       { who: 'bot', text: '🍔 ₹380 · Zomato · Food Delivery' },
+      { who: 'user', text: '[forwarded] ₹250 debited to Uber India. Acct XX1234. PhonePe' },
+      { who: 'bot', text: '🚗 ₹250 · Uber · Transport' },
+      { who: 'user', text: '[forwarded] Paid ₹1,200 to Big Bazaar. UPI Ref: 882910' },
+      { who: 'bot', text: '🛒 ₹1,200 · Big Bazaar · Groceries' },
     ],
     footer: 'Works with: GPay · PhonePe · Paytm · BHIM · Bank UPI apps',
     topBorder: MINT,
