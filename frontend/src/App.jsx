@@ -5,6 +5,9 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardLayout } from './components/DashboardLayout';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
+import { FAQ } from './pages/FAQ';
+import { WhatsAppSupport } from './pages/WhatsAppSupport';
+import { Contact } from './pages/Contact';
 import { Dashboard } from './pages/Dashboard';
 import { Transactions } from './pages/Transactions';
 import { Debts } from './pages/Debts';
@@ -22,6 +25,9 @@ function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/whatsapp-support" element={<WhatsAppSupport />} />
+        <Route path="/contact" element={<Contact />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route path="dashboard" element={<Dashboard />} />

@@ -14,9 +14,9 @@ const productLinks = [
 ];
 
 const supportLinks = [
-  { label: 'FAQ', href: '#' },
-  { label: 'WhatsApp support', href: '#' },
-  { label: 'Contact us', href: '#' },
+  { label: 'FAQ', to: '/faq' },
+  { label: 'WhatsApp support', to: '/whatsapp-support' },
+  { label: 'Contact us', to: '/contact' },
 ];
 
 export function Footer() {
@@ -63,7 +63,7 @@ export function Footer() {
             <ul className="space-y-2">
               {supportLinks.map((l) => (
                 <li key={l.label}>
-                  <a href={l.href} className="text-sm hover:opacity-90 transition-opacity" style={{ color: MUTED }}>{l.label}</a>
+                  <Link to={l.to} className="text-sm hover:opacity-90 transition-opacity" style={{ color: MUTED }}>{l.label}</Link>
                 </li>
               ))}
             </ul>
