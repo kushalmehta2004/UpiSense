@@ -69,63 +69,63 @@ export function Dashboard() {
   const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
   return (
-    <div className="min-h-screen bg-[#f8fafb]">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-teal-50/30">
       <Header />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {newTxns > 0 && (
-          <div className="mb-4 p-3 bg-[#0d9488]/10 text-[#0d9488] rounded-xl text-sm">
+          <div className="mb-4 p-3 bg-teal-500/15 text-teal-700 rounded-xl text-sm font-medium border border-teal-200 animate-pulse">
             {newTxns} new transaction{newTxns > 1 ? 's' : ''} added. Refresh to see updates.
           </div>
         )}
 
-        <h1 className="text-2xl font-bold text-[#0f172a] mb-6">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-800 mb-6">Dashboard</h1>
 
         {!featuresLoading && (budgets.length > 0 || debtSummary.owedToMe.length > 0 || debtSummary.iOwe.length > 0) && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             {budgets.length > 0 && (
-              <div className="p-4 bg-white rounded-2xl border border-[#e2e8f0] shadow-sm">
-                <h2 className="text-sm font-semibold text-[#64748b] mb-3">Budgets this month</h2>
+              <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-200 transition-all duration-300">
+                <h2 className="text-sm font-semibold text-slate-600 mb-3">Budgets this month</h2>
                 <ul className="space-y-2">
                   {budgets.slice(0, 3).map((b) => (
                     <li key={b.category} className="flex justify-between items-center text-sm">
-                      <span className="text-[#0f172a]">{b.category}</span>
-                      <span className={b.percent >= 100 ? 'text-red-600' : b.percent >= 80 ? 'text-amber-600' : 'text-[#64748b]'}>
+                      <span className="text-slate-800 font-medium">{b.category}</span>
+                      <span className={b.percent >= 100 ? 'text-red-600 font-semibold' : b.percent >= 80 ? 'text-amber-600 font-medium' : 'text-slate-600'}>
                         ₹{Number(b.spend).toLocaleString('en-IN')} / ₹{Number(b.limit).toLocaleString('en-IN')} ({b.percent}%)
                       </span>
                     </li>
                   ))}
                 </ul>
                 {budgets.length > 3 && (
-                  <p className="text-xs text-[#94a3b8] mt-2">+{budgets.length - 3} more</p>
+                  <p className="text-xs text-slate-500 mt-2">+{budgets.length - 3} more</p>
                 )}
               </div>
             )}
             {(debtSummary.owedToMe.length > 0 || debtSummary.iOwe.length > 0) && (
               <Link
                 to="/debts"
-                className="block p-4 bg-white rounded-2xl border border-[#e2e8f0] hover:border-[#0d9488] hover:shadow-md transition-all col-span-1 md:col-span-2"
+                className="block p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition-all duration-300 group col-span-1 md:col-span-2"
               >
-                <h2 className="text-sm font-semibold text-[#64748b] mb-2">Debts (IOU)</h2>
+                <h2 className="text-sm font-semibold text-slate-600 mb-2">Debts (IOU)</h2>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-[#059669] font-medium">Who owes you</p>
-                    <p className="text-[#0f172a]">
+                    <p className="text-teal-600 font-semibold">Who owes you</p>
+                    <p className="text-slate-800 font-medium">
                       {debtSummary.owedToMe.length === 0
                         ? 'No one'
                         : `${debtSummary.owedToMe.length} person(s) · ₹${debtSummary.owedToMe.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}`}
                     </p>
                   </div>
                   <div>
-                    <p className="text-amber-700 font-medium">Who you owe</p>
-                    <p className="text-[#0f172a]">
+                    <p className="text-amber-600 font-semibold">Who you owe</p>
+                    <p className="text-slate-800 font-medium">
                       {debtSummary.iOwe.length === 0
                         ? 'No one'
                         : `${debtSummary.iOwe.length} person(s) · ₹${debtSummary.iOwe.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}`}
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-[#94a3b8] mt-2">View full list →</p>
+                <p className="text-xs text-slate-500 mt-2 group-hover:text-teal-600 transition-colors">View full list →</p>
               </Link>
             )}
           </div>
@@ -137,7 +137,7 @@ export function Dashboard() {
         </div>
 
         <section>
-          <h2 className="text-lg font-semibold text-[#0f172a] mb-4">Recent Transactions</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Recent Transactions</h2>
           <TransactionFeed compact />
         </section>
       </main>

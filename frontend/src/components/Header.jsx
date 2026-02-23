@@ -6,6 +6,7 @@ export function Header() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
 
   const handleLogout = () => {
     logout();
@@ -13,7 +14,7 @@ export function Header() {
     setMenuOpen(false);
   };
 
-  const navClass = 'block py-2 sm:py-0 text-[#64748b] hover:text-[#0d9488] transition-colors';
+  const navClass = 'block py-2 sm:py-0 text-slate-600 hover:text-teal-600 font-medium transition-colors duration-200';
   const navLinks = (
     <>
       <Link to="/" className={navClass} onClick={() => setMenuOpen(false)}>Dashboard</Link>
@@ -21,10 +22,10 @@ export function Header() {
       <Link to="/debts" className={navClass} onClick={() => setMenuOpen(false)}>Debts</Link>
       <Link to="/settings" className={navClass} onClick={() => setMenuOpen(false)}>Settings</Link>
       {user && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
           <button
             onClick={handleLogout}
-            className="text-sm text-[#64748b] hover:text-red-600 transition-colors text-left sm:text-center"
+            className="text-sm text-slate-600 hover:text-red-500 font-medium transition-colors text-left sm:text-center py-1 rounded hover:bg-red-50 px-2 -mx-2"
           >
             Logout
           </button>
@@ -34,19 +35,24 @@ export function Header() {
   );
 
   return (
-    <header className="bg-white border-b border-[#e2e8f0] sticky top-0 z-10">
+    <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-10 shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.svg" alt="UpiSense" className="h-8 w-auto" />
-            <span className="text-xl font-bold text-[#0d9488]">UpiSense</span>
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img
+              src={logoSrc}
+              alt="UpiSense"
+              className="h-9 w-9 object-contain"
+              onError={() => setLogoSrc('/logo.svg')}
+            />
+            <span className="text-xl font-bold bg-gradient-to-r from-teal-600 to-teal-500 bg-clip-text text-transparent group-hover:from-teal-500 group-hover:to-teal-400 transition-all duration-200">UpiSense</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-6">
             {navLinks}
           </nav>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="sm:hidden p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg"
+            className="sm:hidden p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-600 rounded-lg transition-colors"
             aria-label="Toggle menu"
           >
             {menuOpen ? (
@@ -61,7 +67,7 @@ export function Header() {
           </button>
         </div>
         {menuOpen && (
-          <div className="sm:hidden py-4 space-y-1 border-t border-[#f1f5f9]">
+          <div className="sm:hidden py-4 space-y-1 border-t border-slate-100">
             {navLinks}
           </div>
         )}

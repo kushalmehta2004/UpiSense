@@ -27,21 +27,21 @@ function TransactionItem({ txn }) {
   return (
     <div
       key={txn.id}
-      className="flex justify-between items-start p-4 bg-white rounded-xl border border-[#e2e8f0] hover:border-[#cbd5e1] transition-colors"
+      className="flex justify-between items-start p-4 bg-white rounded-xl border border-slate-200 hover:border-teal-200 hover:shadow-md transition-all duration-200 cursor-default"
     >
       <div>
-        <p className="font-semibold text-[#0f172a]">{txn.merchant_name || 'Unknown'}</p>
-        <p className="text-sm text-[#64748b]">{txn.category || 'Uncategorized'}</p>
+        <p className="font-semibold text-slate-800">{txn.merchant_name || 'Unknown'}</p>
+        <p className="text-sm text-slate-500">{txn.category || 'Uncategorized'}</p>
         {txn.notes && (
-          <p className="text-sm text-[#475569] mt-0.5 italic">&quot;{txn.notes}&quot;</p>
+          <p className="text-sm text-slate-600 mt-0.5 italic">&quot;{txn.notes}&quot;</p>
         )}
         {date && (
-          <p className="text-xs text-[#94a3b8] mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5">
             {format(new Date(date), 'MMM d, yyyy · h:mm a')}
           </p>
         )}
       </div>
-      <p className="font-bold text-[#0f172a]">{formatAmount(txn.amount)}</p>
+      <p className="font-bold text-teal-600">{formatAmount(txn.amount)}</p>
     </div>
   );
 }
@@ -112,7 +112,7 @@ export function TransactionFeed({ compact = false }) {
             />
             <button
               type="submit"
-              className="px-4 py-2 bg-[#f1f5f9] text-[#475569] rounded-xl hover:bg-[#e2e8f0] transition-colors font-medium"
+              className="px-4 py-2 bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition-colors font-medium shadow-sm"
             >
               Search
             </button>
@@ -163,7 +163,7 @@ export function TransactionFeed({ compact = false }) {
           <div className="animate-spin w-8 h-8 border-2 border-[#0d9488] border-t-transparent rounded-full" />
         </div>
       ) : transactions.length === 0 ? (
-        <div className="p-8 text-center bg-white rounded-xl border border-[#e2e8f0] text-[#64748b]">
+        <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-500 shadow-sm">
           No transactions in this period. Forward a UPI payment to your WhatsApp number to get started.
         </div>
       ) : (
