@@ -340,7 +340,7 @@ export function TransactionFeed({ compact = false }) {
           No transactions in this period. Forward a UPI payment to your WhatsApp number to get started.
         </div>
       ) : (
-        <div className={compact ? 'space-y-0 max-h-[360px] overflow-y-auto' : 'space-y-2'}>
+        <div className={compact ? 'space-y-0' : 'space-y-2'}>
           {list.map((txn) => (
             <TransactionItem key={txn.id} txn={txn} cardStyle={!compact} />
           ))}
