@@ -655,23 +655,6 @@ const plugin = async (fastify, options) => {
           } catch (err) {
             console.error('Budget alert check failed:', err.message);
           }
-          // Tier 1: Recurring detection – suggest if similar transaction in last 30 days
-          try {
-            const similar = await findSimilarRecentTransaction(supabase, userId, parsed.merchant || parsed.upi_id, parsed.amount);
-            if (similar) {
-              await setPendingRecurringSuggestion(supabase, userId, txn.id);
-              await sendWhatsAppText(senderId, '🔄 Looks like a recurring payment. Reply *yes* to mark as recurring.');
-            }
-          } catch (err) {
-            console.error('Recurring suggestion failed:', err.message);
-          }
-          // Tier 1: Split this transaction – offer to add to a group
-          try {
-            await setPendingSplit(supabase, userId, txn.id);
-            await sendWhatsAppText(senderId, 'Split this? Reply _split GroupName_ to add to a group (e.g. _split Apartment_).');
-          } catch (err) {
-            console.error('Pending split failed:', err.message);
-          }
         }
 
         return reply.send({ success: true, parsed: true, txnId: txn.id });
