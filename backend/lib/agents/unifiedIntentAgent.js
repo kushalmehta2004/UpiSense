@@ -35,9 +35,12 @@ const CATEGORIES = getCategoryNames();
  */
 async function parseWithUnifiedAgent(text) {
   const ai = getGemini();
-  if (!ai) return null;
+  if (!ai) {
+    console.warn('unifiedIntentAgent: GEMINI_API_KEY not set or invalid – skipping');
+    return null;
+  }
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const model = ai.getGenerativeModel({ model: modelName });
 
   const prompt = `You are a financial assistant. The user sends messages about payments or group expenses. Your job is to interpret the message and output ONE structured JSON object that matches our schema.
@@ -67,7 +70,12 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
 
   try {
     const result = await model.generateContent(fullPrompt);
-    let responseText = result.response.text().trim();
+    const response = result.response;
+    if (!response) {
+      console.error('unifiedIntentAgent: no response from Gemini');
+      return null;
+    }
+    let responseText = response.text().trim();
     if (responseText.startsWith('```')) responseText = responseText.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
     const parsed = JSON.parse(responseText);
 
@@ -115,6 +123,7 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
     return null;
   } catch (err) {
     console.error('unifiedIntentAgent error:', err.message);
+    if (err.response) console.error('  response:', err.response);
     return null;
   }
 }

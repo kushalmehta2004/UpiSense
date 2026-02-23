@@ -742,8 +742,21 @@ const plugin = async (fastify, options) => {
       if (!message) {
         return reply.code(400).send({ error: 'Missing message. Use ?message=500+to+restaurant' });
       }
-      const intent = await parseWithUnifiedAgent(message);
-      return reply.send({ success: true, message, intent });
+      let intent = null;
+      let errorDetail = null;
+      try {
+        intent = await parseWithUnifiedAgent(message);
+      } catch (e) {
+        errorDetail = e.message || String(e);
+        console.error('❌ test-intent parse error:', errorDetail);
+      }
+      const hasKey = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 10);
+      return reply.send({
+        success: true,
+        message,
+        intent,
+        debug: intent ? undefined : { GEMINI_API_KEY_set: hasKey, error: errorDetail || (hasKey ? 'Agent returned null (parse or type=none)' : 'Set GEMINI_API_KEY in .env and restart') }
+      });
     } catch (error) {
       console.error('❌ test-intent error:', error.message);
       return reply.code(500).send({ error: error.message });
