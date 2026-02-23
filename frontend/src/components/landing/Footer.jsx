@@ -80,7 +80,7 @@ export function Footer() {
         </div>
         <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm" style={{ color: MUTED }}>
           <span>© 2025 UpiSense. All rights reserved.</span>
-          <a href="mailto:privacy@upisense.app" className="hover:opacity-90">privacy@upisense.app</a>
+          
         </div>
       </div>
     </footer>
