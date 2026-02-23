@@ -16,7 +16,11 @@ async function buildApp() {
     done(null, {});
   });
 
-  app.register(cors);
+  app.register(cors, {
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
   await app.register(jwt, { secret: process.env.JWT_SECRET || 'dev-secret-change-in-prod' });
 
   app.decorate('authenticate', async function (request, reply) {

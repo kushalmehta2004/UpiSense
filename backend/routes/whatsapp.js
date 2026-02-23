@@ -19,7 +19,8 @@ const { getPhoneVariants, normalizeForWhatsApp } = require('../lib/phoneUtils.js
 const {
   parseBudgetCommand,
   setBudget,
-  getBudgetAlertAfterTransaction
+  getBudgetAlertAfterTransaction,
+  matchCategoryName
 } = require('../lib/budget/budgetService.js');
 const {
   parseReportCommand,
@@ -317,6 +318,30 @@ const plugin = async (fastify, options) => {
           else if (splitResult.message) await sendWhatsAppText(senderId, splitResult.message);
           return reply.send({ success: true });
         }
+        // Category correction: user replied with a category name (e.g. "Transport") to our "tell us the right category" prompt
+        const { data: pendingCat } = await supabase.from('pending_category_confirmation').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
+        if (pendingCat) {
+          const trimmed = text.trim().toLowerCase();
+          if (trimmed === 'yes' || trimmed === 'y') {
+            await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+            await sendWhatsAppText(senderId, '✅ Got it! Category confirmed.');
+            return reply.send({ success: true });
+          }
+          const category = matchCategoryName(text);
+          if (category) {
+            const { data: txn } = await supabase.from('transactions').select('merchant_name, upi_id').eq('id', pendingCat.transaction_id).single();
+            if (txn) {
+              await supabase.from('transactions').update({ category }).eq('id', pendingCat.transaction_id);
+              await saveToMerchantMemory(supabase, { user_id: cmdUser.id, merchant_name: txn.merchant_name || txn.upi_id || 'Unknown', upi_id: txn.upi_id || txn.merchant_name, category, is_p2p: false });
+              await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+              await sendWhatsAppText(senderId, `✅ Saved as *${category}*. Future payments to this person will use this category.`);
+            } else {
+              await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+              await sendWhatsAppText(senderId, 'Transaction no longer found. Category not updated.');
+            }
+            return reply.send({ success: true });
+          }
+        }
         const budgetParsed = parseBudgetCommand(text);
         if (budgetParsed) {
           try {
@@ -601,10 +626,13 @@ const plugin = async (fastify, options) => {
             console.error('❌ Clarification send failed:', err.message);
           }
         } else if (shouldAskConfirm) {
-          // Task 6: Low confidence — ask user to confirm category
-          const merchant = parsed.merchant || parsed.upi_id || 'Unknown';
-          const msg = `We categorized your payment of ₹${parsed.amount} to *${merchant}* as *${assignedCategory}*. Reply YES if correct, or tell us the right category.`;
+          // Task 6: Low confidence — ask user to confirm category; save pending so reply "Transport" updates it
+          const { data: txnRow } = await supabase.from('transactions').select('amount, merchant_name').eq('id', txn.id).single();
+          const amountDisplay = txnRow?.amount != null ? Number(txnRow.amount).toLocaleString('en-IN') : (parsed.amount != null ? String(parsed.amount) : '?');
+          const merchant = txnRow?.merchant_name || parsed.merchant || parsed.upi_id || 'Unknown';
+          const msg = `We categorized your payment of ₹${amountDisplay} to *${merchant}* as *${assignedCategory}*. Reply YES if correct, or tell us the right category (e.g. Transport, Food).`;
           try {
+            await supabase.from('pending_category_confirmation').upsert({ user_id: userId, transaction_id: txn.id }, { onConflict: 'user_id' });
             await sendWhatsAppText(senderId, msg);
             console.log('📤 Sent confidence confirmation request');
           } catch (err) {

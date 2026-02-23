@@ -70,6 +70,19 @@ const templates = {
     fields: ['amount', 'ref'],
     sourceApp: 'generic',
     confidence: 0.70
+  },
+  // NLP-friendly: "paid 100 to auto", "paid 100 rupees to cab", "I paid 50 to rickshaw"
+  user_paid_to: {
+    pattern: /(?:i\s+)?paid\s+([\d,]+(?:\s*\.\d{2})?)\s*(?:rupees?|rs\.?|inr)?\s+to\s+(.+?)(?:\.|$|\s+on)/is,
+    fields: ['amount', 'merchant'],
+    sourceApp: 'user',
+    confidence: 0.90
+  },
+  user_paid_to_simple: {
+    pattern: /(?:i\s+)?paid\s+([\d,]+)\s+to\s+(\S+)/i,
+    fields: ['amount', 'merchant'],
+    sourceApp: 'user',
+    confidence: 0.85
   }
 };
 
