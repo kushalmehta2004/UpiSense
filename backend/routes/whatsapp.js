@@ -345,7 +345,7 @@ const plugin = async (fastify, options) => {
               upi_id: null,
               category: assignedCategory,
               source_app: 'whatsapp',
-              parse_method: 'pending_recipient_reply',
+              parse_method: 'pending_recipient',
               confidence: 0.9,
               timestamp: new Date().toISOString()
             }])
