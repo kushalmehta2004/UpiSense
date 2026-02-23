@@ -36,6 +36,9 @@ const {
   listGroupsForUser
 } = require('../lib/groups/groupService.js');
 const {
+  addExpense,
+  addExpenseWithShares,
+  resolveSharesToUserIds,
   getBalanceForUser,
   formatBalanceMessage,
   parseBalanceCommand,
@@ -45,6 +48,7 @@ const {
 } = require('../lib/expenses/expenseService.js');
 const { shouldHandle: groupsShouldHandle, process: groupsAgentProcess } = require('../lib/agents/groupsAgent.js');
 const { logAgentHandling } = require('../lib/agents/agentRouter.js');
+const { parseWithUnifiedAgent, shouldTryAgent } = require('../lib/agents/unifiedIntentAgent.js');
 const { parseReceiptFromWhatsAppMedia } = require('../lib/receipt/receiptParser.js');
 const {
   addToFamily,
@@ -407,7 +411,69 @@ const plugin = async (fastify, options) => {
           }
           return reply.send({ success: true });
         }
-        // Groups agent: expense/split messages (e.g. "expense 500 to 306 where friend owes 200")
+        // Unified intent agent first: one LLM interprets message → transaction or group_expense (schema-based)
+        if (shouldTryAgent(text)) {
+          try {
+            const intent = await parseWithUnifiedAgent(text);
+            if (intent) {
+              logAgentHandling('UnifiedIntent', `${intent.type}: ${intent.amount} ${intent.category}`);
+              if (intent.type === 'group_expense') {
+                const group = await findGroupByName(supabase, cmdUser.id, intent.group_name);
+                if (!group) {
+                  await sendWhatsAppText(senderId, `❌ Group "${intent.group_name}" not found. Reply _groups_ to see your groups.`);
+                  return reply.send({ success: true });
+                }
+                const expenseDate = new Date().toISOString().slice(0, 10);
+                if (intent.shares && intent.shares.length > 0) {
+                  const resolved = await resolveSharesToUserIds(supabase, group.id, cmdUser.id, intent.shares);
+                  if (resolved.length > 0) {
+                    await addExpenseWithShares(supabase, group.id, cmdUser.id, intent.amount, intent.description, expenseDate, resolved);
+                    await sendWhatsAppText(senderId, `✅ Added expense: ₹${intent.amount.toLocaleString('en-IN')} – ${intent.description} in *${group.name}* (custom split).`);
+                  } else {
+                    await addExpense(supabase, group.id, cmdUser.id, intent.amount, intent.description, expenseDate);
+                    await sendWhatsAppText(senderId, `✅ Added expense: ₹${intent.amount.toLocaleString('en-IN')} – ${intent.description} in *${group.name}* (split equally).`);
+                  }
+                } else {
+                  await addExpense(supabase, group.id, cmdUser.id, intent.amount, intent.description, expenseDate);
+                  await sendWhatsAppText(senderId, `✅ Added expense: ₹${intent.amount.toLocaleString('en-IN')} – ${intent.description} in *${group.name}* (split equally).`);
+                }
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'transaction') {
+                const { error: txnErr } = await supabase
+                  .from('transactions')
+                  .insert([{
+                    user_id: cmdUser.id,
+                    amount: intent.amount,
+                    merchant_name: intent.merchant_name || 'Unknown',
+                    upi_id: null,
+                    category: intent.category,
+                    source_app: 'unified_agent',
+                    parse_method: 'unified_agent',
+                    confidence: 0.9,
+                    timestamp: new Date().toISOString()
+                  }]);
+                if (txnErr) {
+                  console.error('Unified agent transaction insert error:', txnErr.message);
+                  await sendWhatsAppText(senderId, `❌ Could not save: ${txnErr.message}`);
+                  return reply.send({ success: true });
+                }
+                await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})`);
+                try {
+                  const alertMsg = await getBudgetAlertAfterTransaction(supabase, cmdUser.id, intent.category, intent.amount);
+                  if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
+                } catch (e) {
+                  console.error('Budget alert check failed:', e.message);
+                }
+                return reply.send({ success: true });
+              }
+            }
+          } catch (err) {
+            console.error('Unified intent agent error:', err.message);
+          }
+        }
+
+        // Groups agent fallback: expense/split messages (e.g. regex "expense 500 dinner in X")
         if (groupsShouldHandle(text)) {
           logAgentHandling('Groups', text.trim().slice(0, 60));
           const handled = await groupsAgentProcess(text, {
@@ -500,9 +566,10 @@ const plugin = async (fastify, options) => {
           }
           return reply.send({ success: true });
         }
+
       }
 
-      // Transaction agent: parse and record payment (category from memory → dictionary → LLM → default)
+      // Fallback: transaction parse (regex + LLM) then categorize and store
       const parsed = await parseTransactionUnified(text);
 
       if (parsed) {
@@ -665,6 +732,21 @@ const plugin = async (fastify, options) => {
       console.error('❌ Error processing webhook:', error.message);
       logError('webhook', error, {});
       return reply.code(500).send({ error: 'Internal error' });
+    }
+  });
+
+  // Test unified intent agent (GET so you can curl easily)
+  fastify.get('/api/test-intent', async (request, reply) => {
+    try {
+      const message = request.query.message || request.query.m;
+      if (!message) {
+        return reply.code(400).send({ error: 'Missing message. Use ?message=500+to+restaurant' });
+      }
+      const intent = await parseWithUnifiedAgent(message);
+      return reply.send({ success: true, message, intent });
+    } catch (error) {
+      console.error('❌ test-intent error:', error.message);
+      return reply.code(500).send({ error: error.message });
     }
   });
 
