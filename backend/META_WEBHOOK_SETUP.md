@@ -77,6 +77,7 @@ In Meta → your app → **WhatsApp** → **API Setup**, find **"Manage phone nu
 
 ## Troubleshooting
 
+- **"Route GET:/ not found" or 404 in logs**: Your **Callback URL in Meta is wrong**. It must be exactly `https://<your-vercel-domain>/webhook/whatsapp` (path must be `/webhook/whatsapp`). In Meta → WhatsApp → Configuration → Webhook → set Callback URL to your full URL, e.g. `https://your-project.vercel.app/webhook/whatsapp`. Then click Verify and save.
 - **Verification fails**: Check that callback URL is HTTPS, path is `/webhook/whatsapp`, and `META_VERIFY_TOKEN` matches Meta’s “Verify token”.
 - **No incoming messages in logs**: Check that “messages” is subscribed in the webhook and that the app is in “Live” mode if required.
 - **No reply from bot**: (1) Add your phone number as a test recipient in Meta (WhatsApp → API Setup → manage phone number list). (2) Check `META_ACCESS_TOKEN`, `META_PHONE_ID`, and WhatsApp API permissions. (3) In Vercel function logs, look for `📤 WhatsApp sent` (success) or `❌ WhatsApp send failed` plus the Meta error message.

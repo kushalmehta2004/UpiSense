@@ -36,6 +36,15 @@ async function buildApp() {
   const transactionsRoutes = require('./routes/transactions.js');
   const featuresRoutes = require('./routes/features.js');
 
+  app.get('/', async (request, reply) => {
+    return reply.send({
+      name: 'UpiSense API',
+      status: 'ok',
+      webhook: 'WhatsApp webhook must be configured at POST /webhook/whatsapp (verification: GET /webhook/whatsapp)',
+      health: '/health',
+    });
+  });
+
   app.get('/health', async (request, reply) => {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
