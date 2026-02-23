@@ -142,36 +142,56 @@ const plugin = async (fastify) => {
 
   /**
    * GET /api/transactions/daily-trend
-   * Daily spend for last 7 days
+   * Daily spend: either last N days (query: days) or a date range (query: from, to)
    */
   fastify.get('/api/transactions/daily-trend', {
     preHandler: [fastify.authenticate]
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const days = Math.min(30, Math.max(7, parseInt(request.query.days, 10) || 7));
+      const { from: fromQuery, to: toQuery, days: daysQuery } = request.query;
 
-      const end = new Date();
-      const start = new Date();
-      start.setDate(start.getDate() - days);
+      let start;
+      let end;
+      let days;
+
+      if (fromQuery && toQuery) {
+        start = new Date(fromQuery);
+        end = new Date(toQuery);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return reply.code(400).send({ error: 'Invalid from or to date' });
+        }
+        if (start > end) {
+          [start, end] = [end, start];
+        }
+        days = Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
+      } else {
+        days = Math.min(30, Math.max(7, parseInt(daysQuery, 10) || 7));
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - days);
+      }
+
+      const startStr = start.toISOString().slice(0, 10);
+      const endStr = end.toISOString().slice(0, 10);
 
       const { data, error } = await supabase
         .from('transactions')
         .select('timestamp, amount')
         .eq('user_id', userId)
-        .gte('timestamp', start.toISOString())
-        .lte('timestamp', end.toISOString())
+        .gte('timestamp', new Date(startStr).toISOString())
+        .lte('timestamp', new Date(endStr + 'T23:59:59.999Z').toISOString())
         .not('amount', 'is', null);
 
       if (error) throw error;
 
-      // Group by date
+      // Build one entry per day in range
       const byDate = {};
-      for (let d = 0; d <= days; d++) {
-        const date = new Date(start);
-        date.setDate(date.getDate() + d);
-        const key = date.toISOString().slice(0, 10);
+      const walk = new Date(start);
+      while (walk <= end) {
+        const key = walk.toISOString().slice(0, 10);
         byDate[key] = { date: key, amount: 0, count: 0 };
+        walk.setDate(walk.getDate() + 1);
       }
 
       (data || []).forEach((row) => {
@@ -187,7 +207,9 @@ const plugin = async (fastify) => {
       return reply.send({
         success: true,
         trend,
-        days
+        days,
+        from: startStr,
+        to: endStr
       });
     } catch (error) {
       console.error('❌ Daily trend error:', error.message);

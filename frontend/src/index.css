@@ -22,3 +22,8 @@ body {
   background-color: var(--color-surface);
   color: var(--color-ink);
 }
+
+/* Prevent Recharts tooltip from sliding in from (0,0) */
+.recharts-tooltip-wrapper {
+  transition: none !important;
+}

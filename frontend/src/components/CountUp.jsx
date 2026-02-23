@@ -6,6 +6,11 @@ export function CountUp({ value, duration = 800, decimals = 0 }) {
   const [hasAnimated, setHasAnimated] = useState(false);
   const num = Number(value) || 0;
 
+  // When value changes (e.g. new month), allow animating again
+  useEffect(() => {
+    setHasAnimated(false);
+  }, [num]);
+
   useEffect(() => {
     if (!ref.current || hasAnimated) return;
     const start = 0;

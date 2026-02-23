@@ -29,8 +29,8 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export function WeeklyTrend({ days = 7 }) {
-  const { trend, loading, error } = useDailyTrend(days);
+export function WeeklyTrend({ days = 7, from, to }) {
+  const { trend, loading, error } = useDailyTrend(from && to ? { from, to } : { days });
 
   if (loading) {
     return (
@@ -65,7 +65,9 @@ export function WeeklyTrend({ days = 7 }) {
       className="rounded-2xl border p-6 transition-all duration-200 hover:border-[rgba(0,212,160,0.2)] hover:-translate-y-0.5"
       style={{ background: colors.cardBg, borderColor: colors.cardBorder, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
     >
-      <h3 className="text-sm font-medium mb-4" style={{ color: colors.textSecondary }}>Daily Spend — Last {days} Days</h3>
+      <h3 className="text-sm font-medium mb-4" style={{ color: colors.textSecondary }}>
+        {from && to ? `Daily Spend — ${format(new Date(from), 'MMM yyyy')}` : `Daily Spend — Last ${days} Days`}
+      </h3>
       <div className="w-full overflow-hidden" style={{ width: '100%', height: 224, minHeight: 224, minWidth: 1 }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
           <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>

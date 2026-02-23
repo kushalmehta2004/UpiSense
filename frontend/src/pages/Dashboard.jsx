@@ -8,7 +8,7 @@ import { CategoryChart } from '../components/CategoryChart';
 import { WeeklyTrend } from '../components/WeeklyTrend';
 import { QuickActionsBar } from '../components/QuickActionsBar';
 import { useAuthStore } from '../hooks/useAuth';
-import { useTransactionsSummary, useTransactions, useDailyTrend } from '../hooks/useTransactions';
+import { useTransactionsSummary, useTransactions } from '../hooks/useTransactions';
 import { createClient } from '@supabase/supabase-js';
 import { budgets as budgetsApi, debts as debtsApi } from '../utils/api';
 import { colors, getWhatsAppUrl } from '../theme';
@@ -45,8 +45,6 @@ export function Dashboard() {
     from,
     to,
   });
-  const { trend, loading: trendLoading } = useDailyTrend(7);
-
   const derivedTotalFromSummary = Array.isArray(summary) && summary.length
     ? summary.reduce((s, x) => s + (Number(x?.amount) ?? 0), 0)
     : 0;
@@ -133,7 +131,7 @@ export function Dashboard() {
               'Loading…'
             ) : (
               <>
-                You&apos;ve spent ₹<CountUp value={totalSpent} /> this month across{' '}
+                You spent ₹<CountUp value={totalSpent} /> in {format(focusDate, 'MMMM yyyy')} across{' '}
                 <CountUp value={txnCount} /> transactions
               </>
             )}
@@ -255,8 +253,8 @@ export function Dashboard() {
 
       {/* Row 2: Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-[55%_1fr] gap-6">
-        <WeeklyTrend days={7} />
-        <CategoryChart />
+        <WeeklyTrend days={7} from={from} to={to} />
+        <CategoryChart from={from} to={to} />
       </div>
 
       {/* Row 3: Budget + Debts */}

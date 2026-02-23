@@ -10,6 +10,7 @@ export function useTransactions({ page = 1, limit = 20, category, from, to, sear
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setData({ transactions: [], pagination: {} });
     txApi.list({ page, limit, category, from, to, search })
       .then(({ data: res }) => {
         if (!cancelled) {
@@ -45,6 +46,7 @@ export function useTransactionsSummary(params = {}) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setData({ summary: [], total: 0 });
     txApi.summary(params)
       .then(({ data: res }) => {
         if (!cancelled) {
@@ -72,7 +74,8 @@ export function useTransactionsSummary(params = {}) {
   return { ...data, loading, error };
 }
 
-export function useDailyTrend(days = 7) {
+export function useDailyTrend(options = {}) {
+  const { days = 7, from, to } = typeof options === 'number' ? { days: options } : options;
   const [data, setData] = useState({ trend: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -80,9 +83,10 @@ export function useDailyTrend(days = 7) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    txApi.dailyTrend({ days })
+    const params = from && to ? { from, to } : { days };
+    txApi.dailyTrend(params)
       .then(({ data: res }) => {
-        if (!cancelled) setData({ trend: res?.trend || [], days: res?.days });
+        if (!cancelled) setData({ trend: res?.trend || [], days: res?.days, from: res?.from, to: res?.to });
       })
       .catch((err) => {
         if (!cancelled) setError(err.response?.data?.error || err.message);
@@ -91,7 +95,7 @@ export function useDailyTrend(days = 7) {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [days]);
+  }, [days, from, to]);
 
   return { ...data, loading, error };
 }

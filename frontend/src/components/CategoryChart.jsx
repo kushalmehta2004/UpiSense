@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactionsSummary, useTransactions } from '../hooks/useTransactions';
 import { useState, useEffect, useRef } from 'react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
@@ -35,39 +35,6 @@ function getDaysInMonth(from, to) {
   const start = new Date(from);
   const end = new Date(to);
   return Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
-}
-
-// Custom tooltip — floating near cursor
-function CustomTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const item = payload[0];
-  const { name, value, payload: row } = item;
-  const fill = row?.fill || MINT;
-  const percent = row?.percent != null ? row.percent : (value && row?.total ? value / row.total : 0);
-  return (
-    <div
-      style={{
-        background: '#1F2937',
-        border: `1px solid ${fill}40`,
-        borderLeft: `3px solid ${fill}`,
-        borderRadius: 10,
-        padding: '10px 14px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-        minWidth: 160,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: fill }} />
-        <span style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'Satoshi, system-ui, sans-serif' }}>{name}</span>
-      </div>
-      <div style={{ color: 'white', fontSize: 18, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
-        ₹{Number(value).toLocaleString('en-IN')}
-      </div>
-      <div style={{ color: '#4B5563', fontSize: 11, fontFamily: 'Satoshi, system-ui, sans-serif', marginTop: 2 }}>
-        {((percent || 0) * 100).toFixed(1)}% of total
-      </div>
-    </div>
-  );
 }
 
 // Active segment shape: pops out 8px + glow
@@ -121,7 +88,6 @@ function useCountUp(value, enabled) {
 }
 
 export function CategoryChart({ from: fromProp, to: toProp }) {
-  const [monthOffset, setMonthOffset] = useState(0);
   const [activeIndex, setActiveIndex] = useState(null);
   const [inView, setInView] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -135,7 +101,7 @@ export function CategoryChart({ from: fromProp, to: toProp }) {
   }, []);
 
   const now = new Date();
-  const focusDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const focusDate = new Date(now.getFullYear(), now.getMonth(), 1);
   const from = fromProp || format(startOfMonth(focusDate), 'yyyy-MM-dd');
   const to = toProp || format(endOfMonth(focusDate), 'yyyy-MM-dd');
 
@@ -238,40 +204,6 @@ export function CategoryChart({ from: fromProp, to: toProp }) {
         >
           Spending Breakdown
         </span>
-        {fromProp == null && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="rounded-full border p-1.5 transition-colors hover:border-[rgba(0,212,160,0.3)] hover:text-white disabled:opacity-40"
-              style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', color: '#9CA3AF' }}
-              onClick={() => setMonthOffset((m) => m - 1)}
-              aria-label="Previous month"
-            >
-              ←
-            </button>
-            <span
-              className="rounded-full border px-[14px] py-1.5 text-[13px]"
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                borderColor: 'rgba(255,255,255,0.08)',
-                color: '#9CA3AF',
-                fontFamily: 'Satoshi, system-ui, sans-serif',
-              }}
-            >
-              {format(focusDate, 'MMM yyyy')} ▾
-            </span>
-            <button
-              type="button"
-              className="rounded-full border p-1.5 transition-colors hover:border-[rgba(0,212,160,0.3)] hover:text-white disabled:opacity-40"
-              style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', color: '#9CA3AF' }}
-              onClick={() => setMonthOffset((m) => Math.min(0, m + 1))}
-              disabled={monthOffset >= 0}
-              aria-label="Next month"
-            >
-              →
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Chart + Legend */}
@@ -311,7 +243,6 @@ export function CategoryChart({ from: fromProp, to: toProp }) {
                   />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} cursor={false} />
             </PieChart>
           </ResponsiveContainer>
           {/* Center content */}
