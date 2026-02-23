@@ -51,14 +51,32 @@ const plugin = async (fastify) => {
 
       if (error) throw error;
 
+      // Supabase may return count as undefined in some versions; fallback to a count query
+      let totalCount = count;
+      if (totalCount == null || totalCount === undefined) {
+        let countQuery = supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId);
+        if (category) countQuery = countQuery.eq('category', category);
+        if (from) countQuery = countQuery.gte('timestamp', `${from}T00:00:00`);
+        if (to) countQuery = countQuery.lte('timestamp', `${to}T23:59:59`);
+        if (search && search.trim()) {
+          const term = `%${search.trim()}%`;
+          countQuery = countQuery.or(`merchant_name.ilike.${term},category.ilike.${term},notes.ilike.${term}`);
+        }
+        const { count: countResult } = await countQuery;
+        totalCount = countResult != null ? countResult : (data || []).length;
+      }
+
       return reply.send({
         success: true,
         transactions: data || [],
         pagination: {
           page: pageNum,
           limit: limitNum,
-          total: count || 0,
-          totalPages: Math.ceil((count || 0) / limitNum)
+          total: totalCount ?? 0,
+          totalPages: Math.ceil((totalCount ?? 0) / limitNum)
         }
       });
     } catch (error) {

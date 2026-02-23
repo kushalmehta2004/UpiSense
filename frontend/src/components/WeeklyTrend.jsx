@@ -66,8 +66,8 @@ export function WeeklyTrend({ days = 7 }) {
       style={{ background: colors.cardBg, borderColor: colors.cardBorder, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
     >
       <h3 className="text-sm font-medium mb-4" style={{ color: colors.textSecondary }}>Daily Spend — Last {days} Days</h3>
-      <div className="w-full" style={{ height: 224, minHeight: 224 }}>
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+      <div className="w-full overflow-hidden" style={{ width: '100%', height: 224, minHeight: 224, minWidth: 1 }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
           <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis

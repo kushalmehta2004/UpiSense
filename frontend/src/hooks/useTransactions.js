@@ -13,14 +13,20 @@ export function useTransactions({ page = 1, limit = 20, category, from, to, sear
     txApi.list({ page, limit, category, from, to, search })
       .then(({ data: res }) => {
         if (!cancelled) {
+          const body = res?.data != null ? res.data : res;
+          const transactions = body?.transactions ?? res?.transactions ?? [];
+          const pagination = body?.pagination ?? res?.pagination ?? {};
           setData({
-            transactions: res.transactions || [],
-            pagination: res.pagination || {},
+            transactions: Array.isArray(transactions) ? transactions : [],
+            pagination: pagination && typeof pagination === 'object' ? pagination : {},
           });
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.response?.data?.error || err.message);
+        if (!cancelled) {
+          setError(err.response?.data?.error || err.message);
+          // Keep previous data on error so we don't flash 0
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -42,16 +48,20 @@ export function useTransactionsSummary(params = {}) {
     txApi.summary(params)
       .then(({ data: res }) => {
         if (!cancelled) {
+          const body = res?.data != null ? res.data : res;
+          const summary = body?.summary ?? res?.summary ?? [];
+          const total = body?.total ?? res?.total;
           setData({
-            summary: res.summary || [],
-            total: res.total || 0,
-            from: res.from,
-            to: res.to,
+            summary: Array.isArray(summary) ? summary : [],
+            total: typeof total === 'number' ? total : (Array.isArray(summary) ? summary.reduce((s, x) => s + (Number(x?.amount) || 0), 0) : 0),
+            from: body?.from ?? res?.from,
+            to: body?.to ?? res?.to,
           });
         }
       })
       .catch((err) => {
         if (!cancelled) setError(err.response?.data?.error || err.message);
+        // Keep previous data on error so we don't flash 0
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -72,7 +82,7 @@ export function useDailyTrend(days = 7) {
     setLoading(true);
     txApi.dailyTrend({ days })
       .then(({ data: res }) => {
-        if (!cancelled) setData({ trend: res.trend || [], days: res.days });
+        if (!cancelled) setData({ trend: res?.trend || [], days: res?.days });
       })
       .catch((err) => {
         if (!cancelled) setError(err.response?.data?.error || err.message);

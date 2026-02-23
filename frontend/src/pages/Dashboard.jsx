@@ -48,12 +48,12 @@ export function Dashboard() {
   const { trend, loading: trendLoading } = useDailyTrend(7);
 
   const derivedTotalFromSummary = Array.isArray(summary) && summary.length
-    ? summary.reduce((s, x) => s + (Number(x.amount) || 0), 0)
+    ? summary.reduce((s, x) => s + (Number(x?.amount) ?? 0), 0)
     : 0;
-  const totalSpent = (typeof summaryTotal === 'number' && summaryTotal > 0) ? summaryTotal : derivedTotalFromSummary;
-  const txnCount = pagination?.total ?? 0;
-  const owedToMeTotal = debtSummary.owedToMe.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const iOweTotal = debtSummary.iOwe.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const totalSpent = (typeof summaryTotal === 'number' && summaryTotal >= 0) ? summaryTotal : derivedTotalFromSummary;
+  const txnCount = typeof pagination?.total === 'number' ? pagination.total : (pagination?.total != null ? Number(pagination.total) : 0);
+  const owedToMeTotal = debtSummary.owedToMe.reduce((s, e) => s + (Number(e?.amount) ?? Number(e?.balance) ?? 0), 0);
+  const iOweTotal = debtSummary.iOwe.reduce((s, e) => s + (Number(e?.amount) ?? Number(e?.balance) ?? 0), 0);
 
   useEffect(() => {
     if (!supabaseUrl || !supabaseKey || !user?.id) return;
@@ -87,10 +87,12 @@ export function Dashboard() {
           setBudgets(budgetsRes.value.data.budgets);
         }
         if (owedRes.status === 'fulfilled' && owedRes.value?.data?.entries) {
-          setDebtSummary((prev) => ({ ...prev, owedToMe: owedRes.value.data.entries }));
+          const entries = Array.isArray(owedRes.value.data.entries) ? owedRes.value.data.entries : [];
+          setDebtSummary((prev) => ({ ...prev, owedToMe: entries }));
         }
         if (iOweRes.status === 'fulfilled' && iOweRes.value?.data?.entries) {
-          setDebtSummary((prev) => ({ ...prev, iOwe: iOweRes.value.data.entries }));
+          const entries = Array.isArray(iOweRes.value.data.entries) ? iOweRes.value.data.entries : [];
+          setDebtSummary((prev) => ({ ...prev, iOwe: entries }));
         }
       } catch {
         // ignore
@@ -181,7 +183,7 @@ export function Dashboard() {
           </div>
           <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Total Spent</p>
           <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: colors.text }}>
-            ₹<CountUp value={totalSpent} />
+            {summaryLoading && summary.length === 0 ? '—' : <>₹<CountUp value={totalSpent} /></>}
           </p>
           <p className="text-xs mt-1" style={{ color: colors.orange }}>↑ vs last month</p>
         </motion.div>
@@ -201,7 +203,7 @@ export function Dashboard() {
           </div>
           <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Transactions</p>
           <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: colors.text }}>
-            <CountUp value={txnCount} />
+            {listLoading && (!pagination || pagination.total == null) ? '—' : <CountUp value={txnCount} />}
           </p>
           <p className="text-xs mt-1" style={{ color: colors.mint }}>↑ vs last month</p>
         </motion.div>
@@ -221,7 +223,7 @@ export function Dashboard() {
           </div>
           <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Who Owes You</p>
           <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: colors.mint }}>
-            ₹<CountUp value={owedToMeTotal} />
+            {featuresLoading && debtSummary.owedToMe.length === 0 ? '—' : <>₹<CountUp value={owedToMeTotal} /></>}
           </p>
           <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
             {debtSummary.owedToMe.length} people
@@ -243,7 +245,7 @@ export function Dashboard() {
           </div>
           <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>You Owe</p>
           <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: colors.amber }}>
-            ₹<CountUp value={iOweTotal} />
+            {featuresLoading && debtSummary.iOwe.length === 0 ? '—' : <>₹<CountUp value={iOweTotal} /></>}
           </p>
           <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
             {debtSummary.iOwe.length} people
