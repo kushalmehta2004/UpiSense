@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3 } from 'lucide-react';
+import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3, Terminal, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
 import { colors } from '../theme';
+import { WhatsAppButton } from '../components/WhatsAppButton';
 
 function getInitials(name) {
   if (!name || typeof name !== 'string') return 'U';
@@ -20,6 +21,9 @@ export function Settings() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
+  const [upiOpen, setUpiOpen] = useState(true);
+  const [cashOpen, setCashOpen] = useState(false);
+  const [iouOpen, setIouOpen] = useState(false);
 
   useEffect(() => {
     if (user?.name !== undefined) {
@@ -223,6 +227,9 @@ export function Settings() {
             </div>
           </div>
         </div>
+        <div className="mt-6">
+          <WhatsAppButton label="Message UpiSense directly" />
+        </div>
         {whatsappFormatted && (
           <div className="mt-6 pt-6 border-t flex flex-wrap items-center gap-3" style={{ borderColor: colors.cardBorder }}>
             <span className="font-mono text-lg font-semibold" style={{ color: colors.mint }}>{whatsappFormatted}</span>
@@ -236,6 +243,91 @@ export function Settings() {
             </button>
           </div>
         )}
+      </motion.section>
+
+      {/* What can UpiSense understand */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="rounded-2xl border border-t-4 transition-all duration-200"
+        style={{ ...cardStyle, borderTopColor: colors.mint }}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <Terminal className="w-5 h-5" style={{ color: colors.mint }} />
+          <h2 className="text-lg font-semibold" style={{ color: colors.text }}>What can UpiSense understand?</h2>
+        </div>
+        <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>Supported commands</p>
+
+        {/* UPI Notifications */}
+        <div className="border-b" style={{ borderColor: colors.cardBorder }}>
+          <button
+            type="button"
+            onClick={() => setUpiOpen((o) => !o)}
+            className="w-full flex items-center justify-between py-3 px-2 -mx-2 rounded-lg transition-colors hover:bg-white/5 text-left"
+          >
+            <span className="font-medium text-sm" style={{ color: colors.text }}>UPI Notifications</span>
+            <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${upiOpen ? 'rotate-180' : ''}`} style={{ color: colors.textSecondary }} />
+          </button>
+          <div className="overflow-hidden transition-all duration-300 ease-out" style={{ maxHeight: upiOpen ? 200 : 0 }}>
+            <p className="text-xs pb-2" style={{ color: colors.textSecondary }}>Forward any notification from:</p>
+            <p className="text-sm pb-4" style={{ color: colors.text }}>GPay · PhonePe · Paytm · BHIM · HDFC · SBI · ICICI · Axis</p>
+            <p className="text-xs pb-4" style={{ color: colors.textSecondary }}>Just long-press the notification and forward to UpiSense</p>
+          </div>
+        </div>
+
+        {/* Cash Payments */}
+        <div className="border-b" style={{ borderColor: colors.cardBorder }}>
+          <button
+            type="button"
+            onClick={() => setCashOpen((o) => !o)}
+            className="w-full flex items-center justify-between py-3 px-2 -mx-2 rounded-lg transition-colors hover:bg-white/5 text-left"
+          >
+            <span className="font-medium text-sm" style={{ color: colors.text }}>Cash Payments</span>
+            <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${cashOpen ? 'rotate-180' : ''}`} style={{ color: colors.textSecondary }} />
+          </button>
+          <div className="overflow-hidden transition-all duration-300 ease-out" style={{ maxHeight: cashOpen ? 320 : 0 }}>
+            <p className="text-xs pb-2" style={{ color: colors.textSecondary }}>Examples that work:</p>
+            <ul className="space-y-1.5 pb-4 text-sm" style={{ color: colors.text }}>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;I paid 200 to auto&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;paid 500 cash at pharmacy&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;spent 800 at kirana store&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;150 to the plumber&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;Paid Ramesh 300 for vegetables&quot;</li>
+            </ul>
+            <p className="text-xs pb-4" style={{ color: colors.textSecondary }}>Any amount, any merchant, any phrasing — UpiSense understands.</p>
+          </div>
+        </div>
+
+        {/* IOU Tracking */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setIouOpen((o) => !o)}
+            className="w-full flex items-center justify-between py-3 px-2 -mx-2 rounded-lg transition-colors hover:bg-white/5 text-left"
+          >
+            <span className="font-medium text-sm" style={{ color: colors.text }}>IOU Tracking</span>
+            <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${iouOpen ? 'rotate-180' : ''}`} style={{ color: colors.textSecondary }} />
+          </button>
+          <div className="overflow-hidden transition-all duration-300 ease-out" style={{ maxHeight: iouOpen ? 340 : 0 }}>
+            <p className="text-xs pt-1 pb-1" style={{ color: colors.textSecondary }}>When someone owes you:</p>
+            <ul className="space-y-1 pb-3 text-sm" style={{ color: colors.text }}>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;Rohan owes me 500&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;Priya hasn&apos;t paid for the movie (₹300)&quot;</li>
+            </ul>
+            <p className="text-xs pb-1" style={{ color: colors.textSecondary }}>When you owe someone:</p>
+            <ul className="space-y-1 pb-3 text-sm" style={{ color: colors.text }}>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;I owe Samkit 300&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;Need to pay Deepa back 200&quot;</li>
+            </ul>
+            <p className="text-xs pb-1" style={{ color: colors.textSecondary }}>When settling up:</p>
+            <ul className="space-y-1 pb-4 text-sm" style={{ color: colors.text }}>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;Rohan returned my 500&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;I paid back Samkit 300&quot;</li>
+              <li className="flex items-center gap-2"><span style={{ color: colors.mint }}>✓</span> &quot;Settle Deepa&quot; (settles the full amount)</li>
+            </ul>
+          </div>
+        </div>
       </motion.section>
 
       {/* Card 4: Danger zone */}

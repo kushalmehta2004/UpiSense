@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Smartphone, Share2, LayoutDashboard } from 'lucide-react';
+import { Smartphone, Share2, LayoutDashboard, MessageSquare } from 'lucide-react';
 
 const MINT = '#00D4A0';
 const TEXT = '#F9FAFB';
@@ -14,8 +14,8 @@ const steps = [
     note: null,
   },
   {
-    title: 'Forward the notification',
-    body: 'When the payment notification appears, long-press it and forward to UpiSense on WhatsApp. Two taps. Done.',
+    title: 'Forward a notification — or just type it',
+    body: 'Get a UPI notification? Forward it. Paid in cash? Just type what happened. Track IOUs? Same thing. UpiSense reads plain English.',
     Icon: Share2,
     note: 'Works exactly the same on iPhone and Android',
   },
@@ -24,6 +24,12 @@ const steps = [
     body: 'Your dashboard updates in under 10 seconds. Categorized, tracked, explained.',
     Icon: LayoutDashboard,
     note: 'Gets smarter every week.',
+  },
+  {
+    title: 'Works for cash and IOUs too',
+    body: "Paid someone in cash? Type it. Friend owes you money? Type it. UpiSense understands plain English — it doesn't care how you phrase it.",
+    Icon: MessageSquare,
+    note: '"paid 200 to auto" · "Ravi owes me 500" · "I paid back Deepa"',
   },
 ];
 
@@ -52,9 +58,9 @@ export function HowItWorks() {
 
         <div className="relative">
           {/* Connector line (desktop) */}
-          <div className="hidden md:block absolute top-12 left-0 right-0 h-0.5 border-t border-dashed border-white/20" style={{ left: '16.666%', right: '16.666%' }} />
+          <div className="hidden md:block absolute top-12 left-0 right-0 h-0.5 border-t border-dashed border-white/20" style={{ left: '12.5%', right: '12.5%' }} />
 
-          <div className="grid md:grid-cols-3 gap-12 md:gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-6">
             {steps.map((item, i) => (
               <motion.div
                 key={item.title}

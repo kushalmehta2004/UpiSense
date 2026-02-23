@@ -3,6 +3,7 @@ import { LandingNav } from '../components/landing/LandingNav';
 import { Hero } from '../components/landing/Hero';
 import { Problem } from '../components/landing/Problem';
 import { HowItWorks } from '../components/landing/HowItWorks';
+import { JustSayWhatHappened } from '../components/landing/JustSayWhatHappened';
 import { DashboardPreview } from '../components/landing/DashboardPreview';
 import { WhatsAppMagic } from '../components/landing/WhatsAppMagic';
 import { Categories } from '../components/landing/Categories';
@@ -28,6 +29,7 @@ export function Landing() {
         <Hero />
         <Problem />
         <HowItWorks />
+        <JustSayWhatHappened />
         <DashboardPreview />
         <WhatsAppMagic />
         <Categories />

@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 
@@ -6,7 +7,7 @@ const MINT = '#00D4A0';
 const TEXT = '#F9FAFB';
 const MUTED = '#9CA3AF';
 
-const chatLines = [
+const TAB_UPI = [
   { who: 'user', text: 'Forwarded: Paid ₹450 to Swiggy via GPay' },
   { who: 'bot', text: 'Got it! 🍕\n₹450 · Swiggy · Food Delivery\nlogged to your dashboard' },
   { who: 'user', text: 'Paid ₹1,200 to Rajesh Kumar@ybl' },
@@ -15,16 +16,47 @@ const chatLines = [
   { who: 'bot', text: "Got it! I'll remember Rajesh Kumar@ybl as Home Repair forever 🏠" },
 ];
 
+const TAB_CASH = [
+  { who: 'user', text: 'I paid 100 to Ramesh for vegetables' },
+  { who: 'bot', text: 'Logged! 🥦 ₹100 · Ramesh · Groceries' },
+  { who: 'user', text: 'Paid 500 cash at the medical store' },
+  { who: 'bot', text: 'Got it! 💊 ₹500 · Medical Store · Health' },
+  { who: 'user', text: 'Spent 200 on auto' },
+  { who: 'bot', text: 'Done! 🚗 ₹200 · Auto Rickshaw · Transport' },
+];
+
+const TAB_IOU = [
+  { who: 'user', text: 'Rohan owes me 300 for dinner' },
+  { who: 'bot', text: "Added! I've noted that Rohan owes you ₹300 💰" },
+  { who: 'user', text: 'I owe Samkit 500' },
+  { who: 'bot', text: "Got it. You owe Samkit ₹500. I'll track this for you." },
+  { who: 'user', text: 'Samkit returned my 500' },
+  { who: 'bot', text: "Updated! Samkit's balance is now ₹0. All settled ✅" },
+];
+
+const TABS = [
+  { id: 'upi', label: 'Forward UPI', lines: TAB_UPI },
+  { id: 'cash', label: 'Log Cash', lines: TAB_CASH },
+  { id: 'iou', label: 'Track IOUs', lines: TAB_IOU },
+];
+
 export function Hero() {
+  const [activeTab, setActiveTab] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setActiveTab((a) => (a + 1) % TABS.length), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  const current = TABS[activeTab];
+
   return (
     <section className="relative min-h-screen flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-16 px-4 sm:px-6 pt-24 pb-16 overflow-hidden" style={{ background: '#0A0F1E' }}>
-      {/* Background */}
       <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
       <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl" style={{ background: MINT }} />
       <div className="absolute bottom-1/4 left-1/4 w-64 h-64 rounded-full opacity-15 blur-3xl" style={{ background: '#F5A623' }} />
 
       <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-        {/* Left column */}
         <div className="flex-1 lg:max-w-[60%] space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -55,6 +87,31 @@ export function Hero() {
           >
             Forward one notification. Know exactly where your money went. No app install. No bank login. No manual entry. Ever.
           </motion.p>
+
+          {/* Tab switcher */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="flex flex-wrap gap-2"
+          >
+            {TABS.map((tab, i) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(i)}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-b-2"
+                style={{
+                  color: activeTab === i ? TEXT : MUTED,
+                  background: activeTab === i ? 'rgba(0,212,160,0.1)' : 'transparent',
+                  borderBottomColor: activeTab === i ? MINT : 'transparent',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -96,7 +153,6 @@ export function Hero() {
           </motion.div>
         </div>
 
-        {/* Right column — phone mockup */}
         <motion.div
           initial={{ opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
@@ -110,22 +166,25 @@ export function Hero() {
                 <div className="w-20 h-1.5 rounded-full bg-white/20" />
               </div>
               <div className="p-3 space-y-2 min-h-[400px] bg-[#0d1117]">
-                {chatLines.map((line, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + i * 0.25 }}
-                    className={`flex ${line.who === 'user' ? 'justify-start' : 'justify-end'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs whitespace-pre-line ${line.who === 'user' ? 'rounded-bl-md bg-white/10' : 'rounded-br-md'}`}
-                      style={line.who === 'bot' ? { background: 'linear-gradient(135deg, rgba(0,212,160,0.25) 0%, rgba(14,165,233,0.2) 100%)', color: TEXT } : { color: TEXT }}
+                <AnimatePresence mode="wait">
+                  {current.lines.map((line, i) => (
+                    <motion.div
+                      key={`${activeTab}-${i}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={`flex ${line.who === 'user' ? 'justify-start' : 'justify-end'}`}
                     >
-                      {line.text}
-                    </div>
-                  </motion.div>
-                ))}
+                      <div
+                        className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs whitespace-pre-line ${line.who === 'user' ? 'rounded-bl-md bg-white/10' : 'rounded-br-md'}`}
+                        style={line.who === 'bot' ? { background: 'linear-gradient(135deg, rgba(0,212,160,0.25) 0%, rgba(14,165,233,0.2) 100%)', color: TEXT } : { color: TEXT }}
+                      >
+                        {line.text}
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             </div>
             <motion.div

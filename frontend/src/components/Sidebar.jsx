@@ -39,12 +39,18 @@ export function Sidebar() {
       >
         <div className="p-4 lg:p-5 flex items-center gap-3">
           <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
-            <img
-              src={logoSrc}
-              alt="UpiSense"
-              className="h-9 w-9 shrink-0 object-contain"
-              onError={() => setLogoSrc('/logo.svg')}
-            />
+            <span
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden"
+              style={{ background: SIDEBAR_BG }}
+            >
+              <img
+                src={logoSrc}
+                alt="UpiSense"
+                className="h-12 w-12 w-full object-contain object-center"
+                style={logoSrc.endsWith('.png') ? { mixBlendMode: 'multiply' } : {}}
+                onError={() => setLogoSrc('/logo.svg')}
+              />
+            </span>
             <span className="text-lg font-bold truncate hidden lg:inline" style={{ color: TEXT }}>UpiSense</span>
           </Link>
         </div>

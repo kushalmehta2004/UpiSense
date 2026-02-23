@@ -6,11 +6,12 @@ import { TrendingDown, ArrowLeftRight, ArrowDownLeft, ArrowUpRight } from 'lucid
 import { TransactionFeed } from '../components/TransactionFeed';
 import { CategoryChart } from '../components/CategoryChart';
 import { WeeklyTrend } from '../components/WeeklyTrend';
+import { QuickActionsBar } from '../components/QuickActionsBar';
 import { useAuthStore } from '../hooks/useAuth';
 import { useTransactionsSummary, useTransactions, useDailyTrend } from '../hooks/useTransactions';
 import { createClient } from '@supabase/supabase-js';
 import { budgets as budgetsApi, debts as debtsApi } from '../utils/api';
-import { colors } from '../theme';
+import { colors, getWhatsAppUrl } from '../theme';
 import { CountUp } from '../components/CountUp';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -159,6 +160,9 @@ export function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Quick actions */}
+      <QuickActionsBar />
 
       {/* Row 1: Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -325,30 +329,53 @@ export function Dashboard() {
               View all →
             </Link>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl p-3 border-l-4" style={{ borderLeftColor: colors.mint, background: 'rgba(255,255,255,0.02)' }}>
-              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Who owes you</p>
-              <p className="text-lg font-bold font-mono" style={{ color: colors.mint }}>
-                ₹{owedToMeTotal.toLocaleString('en-IN')}
+          {owedToMeTotal === 0 && iOweTotal === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-sm font-medium mb-1" style={{ color: colors.text }}>No debts tracked yet</p>
+              <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
+                Say &quot;Rohan owes me 500&quot; on WhatsApp to start tracking
               </p>
-              {debtSummary.owedToMe.slice(0, 2).map((e, i) => (
-                <p key={i} className="text-xs mt-1 truncate" style={{ color: colors.textSecondary }}>
-                  {e.person_name} · ₹{Number(e.amount).toLocaleString('en-IN')}
-                </p>
-              ))}
+              <a
+                href={getWhatsAppUrl('Rohan owes me 500')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
+                style={{ background: '#25D366', color: 'white' }}
+              >
+                Message UpiSense on WhatsApp
+              </a>
             </div>
-            <div className="rounded-xl p-3 border-l-4" style={{ borderLeftColor: colors.amber, background: 'rgba(255,255,255,0.02)' }}>
-              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Who you owe</p>
-              <p className="text-lg font-bold font-mono" style={{ color: colors.amber }}>
-                ₹{iOweTotal.toLocaleString('en-IN')}
-              </p>
-              {debtSummary.iOwe.slice(0, 2).map((e, i) => (
-                <p key={i} className="text-xs mt-1 truncate" style={{ color: colors.textSecondary }}>
-                  {e.person_name} · ₹{Number(e.amount).toLocaleString('en-IN')}
-                </p>
-              ))}
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-xl p-3 border-l-4" style={{ borderLeftColor: colors.mint, background: 'rgba(255,255,255,0.02)' }}>
+                  <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Who owes you</p>
+                  <p className="text-lg font-bold font-mono" style={{ color: colors.mint }}>
+                    ₹{owedToMeTotal.toLocaleString('en-IN')}
+                  </p>
+                  {debtSummary.owedToMe.slice(0, 2).map((e, i) => (
+                    <p key={i} className="text-xs mt-1 truncate" style={{ color: colors.textSecondary }}>
+                      {e.person_name} · ₹{Number(e.amount).toLocaleString('en-IN')}
+                    </p>
+                  ))}
+                </div>
+                <div className="rounded-xl p-3 border-l-4" style={{ borderLeftColor: colors.amber, background: 'rgba(255,255,255,0.02)' }}>
+                  <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Who you owe</p>
+                  <p className="text-lg font-bold font-mono" style={{ color: colors.amber }}>
+                    ₹{iOweTotal.toLocaleString('en-IN')}
+                  </p>
+                  {debtSummary.iOwe.slice(0, 2).map((e, i) => (
+                    <p key={i} className="text-xs mt-1 truncate" style={{ color: colors.textSecondary }}>
+                      {e.person_name} · ₹{Number(e.amount).toLocaleString('en-IN')}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 p-3 rounded-lg text-xs italic" style={{ background: colors.inputBg }}>
+                ℹ️ Add via WhatsApp: &quot;Rohan owes me 500&quot; or &quot;I owe Samkit 300&quot;
+              </div>
+            </>
+          )}
         </section>
       </div>
 

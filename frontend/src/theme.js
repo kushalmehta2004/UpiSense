@@ -34,3 +34,14 @@ export const categoryColors = {
 export function getCategoryColor(category) {
   return categoryColors[category] || categoryColors.Other;
 }
+
+/** WhatsApp business/bot number for wa.me links (no +). Set VITE_WHATSAPP_NUMBER in env. */
+export const whatsappNumber = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WHATSAPP_NUMBER) || '919372999366';
+
+export function getWhatsAppUrl(prefilledMessage) {
+  const num = whatsappNumber.replace(/\D/g, '');
+  if (!num) return '#';
+  const base = `https://wa.me/${num}`;
+  if (prefilledMessage) return `${base}?text=${encodeURIComponent(prefilledMessage)}`;
+  return base;
+}

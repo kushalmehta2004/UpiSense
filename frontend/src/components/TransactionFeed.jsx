@@ -1,9 +1,14 @@
 import { format, startOfWeek, startOfMonth, subMonths } from 'date-fns';
 import { useTransactions } from '../hooks/useTransactions';
 import { useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Zap, Banknote } from 'lucide-react';
 import { categories } from '../utils/api';
-import { colors, getCategoryColor } from '../theme';
+import { colors, getCategoryColor, getWhatsAppUrl } from '../theme';
+
+function isCashTxn(txn) {
+  const s = (txn.source_app || '').toLowerCase();
+  return s === 'whatsapp' || s === 'unified_agent';
+}
 
 const TIME_PRESETS = [
   { value: '', label: 'All time', from: null, to: null },
@@ -39,6 +44,7 @@ function TransactionItem({ txn, cardStyle = false }) {
   const date = txn.timestamp || txn.created_at;
   const catColor = getCategoryColor(txn.category);
   const emoji = CATEGORY_EMOJI[txn.category] || '📌';
+  const cash = isCashTxn(txn);
 
   const content = (
     <>
@@ -50,9 +56,22 @@ function TransactionItem({ txn, cardStyle = false }) {
           {emoji}
         </div>
         <div className="min-w-0">
-          <p className="font-semibold truncate" style={{ color: colors.text, fontSize: 15 }}>
-            {txn.merchant_name || 'Unknown'}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold truncate" style={{ color: colors.text, fontSize: 15 }}>
+              {txn.merchant_name || 'Unknown'}
+            </p>
+            <span
+              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded shrink-0"
+              style={{
+                background: cash ? 'rgba(245,166,35,0.12)' : 'rgba(0,212,160,0.12)',
+                color: cash ? colors.amber : colors.mint,
+                fontFamily: 'Satoshi, DM Sans, sans-serif',
+              }}
+            >
+              {cash ? <Banknote className="w-2 h-2" /> : <Zap className="w-2 h-2" />}
+              {cash ? 'Cash' : 'UPI'}
+            </span>
+          </div>
           <span
             className="inline-block text-xs px-2 py-0.5 rounded-full mt-0.5"
             style={{ background: `${catColor}25`, color: catColor }}
@@ -79,6 +98,8 @@ function TransactionItem({ txn, cardStyle = false }) {
         style={{
           background: colors.cardBg,
           borderColor: 'rgba(255,255,255,0.04)',
+          borderLeftWidth: cash ? 3 : 1,
+          borderLeftColor: cash ? 'rgba(245,166,35,0.3)' : undefined,
         }}
       >
         {content}
@@ -89,9 +110,53 @@ function TransactionItem({ txn, cardStyle = false }) {
   return (
     <div
       className="flex justify-between items-center py-4 border-b border-white/5 last:border-0 transition-colors hover:bg-white/[0.02]"
-      style={{ paddingLeft: 4, paddingRight: 4 }}
+      style={{
+        paddingLeft: 4,
+        paddingRight: 4,
+        borderLeft: cash ? '3px solid rgba(245,166,35,0.3)' : undefined,
+      }}
     >
       {content}
+    </div>
+  );
+}
+
+function CashEmptyState() {
+  const examples = [
+    'I paid 200 to the auto driver',
+    'Paid 800 cash at pharmacy',
+    'Spent 500 at the vegetable market',
+  ];
+  return (
+    <div
+      className="p-8 text-center rounded-xl border"
+      style={{ background: colors.cardBg, borderColor: colors.cardBorder }}
+    >
+      <Banknote className="w-12 h-12 mx-auto mb-4" style={{ color: colors.mint }} />
+      <h3 className="text-lg font-semibold mb-2" style={{ color: colors.text }}>No cash payments logged yet</h3>
+      <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+        Paid someone in cash? Just tell UpiSense on WhatsApp:
+      </p>
+      <div className="space-y-2 max-w-xs mx-auto mb-6 text-left">
+        {examples.map((msg) => (
+          <div
+            key={msg}
+            className="px-3 py-2 rounded-lg text-sm"
+            style={{ background: colors.inputBg, color: colors.textSecondary }}
+          >
+            &quot;{msg}&quot;
+          </div>
+        ))}
+      </div>
+      <a
+        href={getWhatsAppUrl('I paid ')}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-semibold"
+        style={{ background: '#25D366', color: 'white' }}
+      >
+        Message UpiSense on WhatsApp
+      </a>
     </div>
   );
 }
@@ -99,6 +164,7 @@ function TransactionItem({ txn, cardStyle = false }) {
 export function TransactionFeed({ compact = false }) {
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
   const [timePreset, setTimePreset] = useState('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -117,6 +183,16 @@ export function TransactionFeed({ compact = false }) {
     to: range.to,
     search: search || undefined,
   });
+
+  const filteredBySource =
+    sourceFilter === 'cash'
+      ? transactions.filter(isCashTxn)
+      : sourceFilter === 'upi'
+        ? transactions.filter((t) => !isCashTxn(t))
+        : transactions;
+  const showFilters = !compact;
+  const list = compact ? transactions.slice(0, 5) : filteredBySource;
+  const isCashFilterEmpty = !compact && sourceFilter === 'cash' && list.length === 0 && !loading;
 
   useEffect(() => {
     categories.list().then(({ data }) => {
@@ -210,6 +286,22 @@ export function TransactionFeed({ compact = false }) {
               ))}
               <option value="custom">Custom range</option>
             </select>
+            {!compact && (
+              <select
+                value={sourceFilter}
+                onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+                className="px-4 py-2.5 rounded-xl border outline-none min-w-[140px] focus:ring-2"
+                style={{
+                  background: colors.inputBg,
+                  borderColor: colors.inputBorder,
+                  color: colors.text,
+                }}
+              >
+                <option value="">All sources</option>
+                <option value="upi">UPI payments</option>
+                <option value="cash">Cash payments</option>
+              </select>
+            )}
           </form>
           {timePreset === 'custom' && (
             <div className="flex flex-wrap gap-2 items-center text-sm">
@@ -241,6 +333,8 @@ export function TransactionFeed({ compact = false }) {
             style={{ borderColor: colors.mint }}
           />
         </div>
+      ) : isCashFilterEmpty ? (
+        <CashEmptyState />
       ) : list.length === 0 ? (
         <div
           className="p-8 text-center rounded-xl border"

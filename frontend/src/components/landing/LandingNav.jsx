@@ -24,12 +24,18 @@ export function LandingNav() {
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight" style={{ fontFamily: 'Clash Display, sans-serif' }}>
-          <img
-            src={logoSrc}
-            alt="UpiSense"
-            className="h-9 w-9 object-contain"
-            onError={() => setLogoSrc('/logo.svg')}
-          />
+          <span
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden"
+            style={{ background: DARK }}
+          >
+            <img
+              src={logoSrc}
+              alt="UpiSense"
+              className="h-12 w-12 w-full object-contain object-center"
+              style={logoSrc.endsWith('.png') ? { mixBlendMode: 'multiply' } : {}}
+              onError={() => setLogoSrc('/logo.svg')}
+            />
+          </span>
           <span style={{ color: TEXT }}>UpiSense</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
