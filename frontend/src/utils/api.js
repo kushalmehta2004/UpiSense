@@ -33,7 +33,7 @@ api.interceptors.response.use(
 
 export const auth = {
   signup: (phone, name) => api.post('/auth/signup', { phone, name }),
-  verify: (phone, otp) => api.post('/auth/verify', { phone, otp }),
+  verify: (phone, otp, name) => api.post('/auth/verify', { phone, otp, name }),
   profile: () => api.get('/auth/profile'),
   updateProfile: (data) => api.patch('/auth/profile', data),
   logout: () => api.post('/auth/logout'),

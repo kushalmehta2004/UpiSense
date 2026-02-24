@@ -6,6 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+// Service-role client for operations that must bypass RLS (e.g. delete account).
+// Set SUPABASE_SERVICE_ROLE_KEY in production so account deletion works.
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
 const plugin = async (fastify, options) => {
   /**
    * POST /auth/signup
@@ -276,17 +282,27 @@ const plugin = async (fastify, options) => {
   /**
    * DELETE /auth/account
    * Permanently delete the current user and all related data. Requires JWT.
+   * Uses service-role client so RLS does not block the delete.
    */
   fastify.delete('/auth/account', async (request, reply) => {
     try {
       await request.jwtVerify();
       const { userId } = request.user;
 
-      const { error } = await supabase.from('users').delete().eq('id', userId);
-
-      if (error) {
-        console.error('❌ Delete account error:', error.message);
-        return reply.code(500).send({ error: 'Failed to delete account' });
+      if (supabaseAdmin) {
+        const { error } = await supabaseAdmin.rpc('delete_user_account', { p_user_id: userId });
+        if (error) {
+          console.error('❌ Delete account error:', error.message);
+          return reply.code(500).send({ error: 'Failed to delete account' });
+        }
+      } else {
+        const { error } = await supabase.from('users').delete().eq('id', userId);
+        if (error) {
+          console.error('❌ Delete account error:', error.message);
+          return reply.code(500).send({
+            error: 'Account deletion is not configured. Set SUPABASE_SERVICE_ROLE_KEY and run the delete_user_account migration.',
+          });
+        }
       }
 
       console.log(`✅ Account deleted: ${userId}`);

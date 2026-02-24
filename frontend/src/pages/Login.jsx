@@ -6,6 +6,7 @@ import { auth } from '../utils/api';
 export function Login() {
   const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,9 +29,13 @@ export function Login() {
       setError('Enter a valid 10-digit phone number');
       return;
     }
+    if (!name || !name.trim()) {
+      setError('Enter your name');
+      return;
+    }
     setLoading(true);
     try {
-      await auth.signup(phone.replace(/\D/g, ''), null);
+      await auth.signup(phone.replace(/\D/g, ''), name.trim());
       setStep('otp');
       setError('');
     } catch (err) {
@@ -49,7 +54,7 @@ export function Login() {
     }
     setLoading(true);
     try {
-      const { data } = await auth.verify(phone.replace(/\D/g, ''), otp);
+      const { data } = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim());
       if (data.success && data.token && data.user) {
         setUser(data.user, data.token);
         navigate(from, { replace: true });
@@ -83,6 +88,15 @@ export function Login() {
                 placeholder="9876543210"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-slate-800"
                 maxLength={15}
+              />
+              <label className="block text-sm font-medium text-slate-600">Your name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value.trimStart().slice(0, 255))}
+                placeholder="e.g. Rahul or Priya"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-slate-800"
+                maxLength={255}
               />
               <label className="flex items-start gap-2 cursor-pointer">
                 <input

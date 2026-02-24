@@ -380,7 +380,7 @@ export function Settings() {
               Open <ExternalLink className="w-4 h-4" />
             </Link>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b" style={{ borderColor: colors.cardBorder }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
             <div>
               <p className="font-medium text-sm" style={{ color: colors.text }}>Terms of Service</p>
               <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Rules for using UpiSense</p>
@@ -394,20 +394,6 @@ export function Settings() {
             >
               Open <ExternalLink className="w-4 h-4" />
             </Link>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
-            <div>
-              <p className="font-medium text-sm" style={{ color: colors.text }}>Request Data Deletion</p>
-              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Delete your account and all associated data within 30 days</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => document.getElementById(DANGER_SECTION_ID)?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-4 py-2 rounded-xl border text-sm font-medium shrink-0 transition-colors hover:bg-orange-500/10"
-              style={{ borderColor: colors.orange, color: colors.orange }}
-            >
-              Delete Account
-            </button>
           </div>
         </div>
         <div
