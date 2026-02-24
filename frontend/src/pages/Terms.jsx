@@ -126,7 +126,7 @@ export function Terms() {
 
           <Section title="12. Governing Law">
             <p>
-              Laws of India. Disputes first attempted via good-faith negotiation. If unresolved within 30 days, subject to courts of <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: '#FEF08A', color: '#000' }}>[FILL IN BEFORE LAUNCH: Your City]</span>, India.
+              Laws of India. Disputes first attempted via good-faith negotiation. If unresolved within 30 days, subject to courts of <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: '#FEF08A', color: '#000' }}>Mumbai</span>, India.
             </p>
           </Section>
 
