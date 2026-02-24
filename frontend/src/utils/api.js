@@ -42,6 +42,7 @@ export const auth = {
 
 export const transactions = {
   list: (params) => api.get('/api/transactions', { params }),
+  update: (id, data) => api.patch(`/api/transactions/${id}`, data),
   summary: (params) => api.get('/api/transactions/summary', { params }),
   dailyTrend: (params) => api.get('/api/transactions/daily-trend', { params }),
 };

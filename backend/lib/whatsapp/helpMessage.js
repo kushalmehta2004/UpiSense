@@ -4,8 +4,10 @@
  * For the WhatsApp Business profile "About" text, set it in Meta Business Suite using getBotDescription().
  */
 
-function getHelpMessage() {
-  return (
+const TERMS_LINE = '\n\nBy using UpiSense you agree to our Terms of Service and Privacy Policy: https://upisense.app/terms';
+
+function getHelpMessage(includeTermsForNewUser = false) {
+  const base =
     `*UpiSense* – What you can do:\n\n` +
     `📥 Forward UPI/bank msgs or send a *receipt photo* → we record it\n` +
     `💰 _budget Food 15000_ – monthly limit + alerts\n` +
@@ -14,8 +16,8 @@ function getHelpMessage() {
     `📋 _who owes me_ · _who I owe_ – see your IOU lists\n` +
     `💬 _request 500 from 91XXX_ – we remind them\n` +
     `🔄 After a txn we may ask *recurring?* or *split GroupName?*\n\n` +
-    `_help_ or _menu_ – show this again`
-  );
+    `_help_ or _menu_ – show this again`;
+  return includeTermsForNewUser ? base + TERMS_LINE : base;
 }
 
 /**

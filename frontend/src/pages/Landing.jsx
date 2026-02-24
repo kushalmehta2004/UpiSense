@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useScroll, useTransform, motion } from 'framer-motion';
 import { LandingNav } from '../components/landing/LandingNav';
 import { Hero } from '../components/landing/Hero';
@@ -16,6 +18,16 @@ const MINT = '#00D4A0';
 export function Landing() {
   const { scrollYProgress } = useScroll();
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const location = useLocation();
+
+  useEffect(() => {
+    const hash = location.hash?.slice(1);
+    if (!hash) return;
+    const el = document.getElementById(hash);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [location.pathname, location.hash]);
 
   return (
     <div className="min-h-screen" style={{ background: '#0A0F1E' }}>

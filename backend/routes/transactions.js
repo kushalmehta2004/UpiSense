@@ -86,6 +86,56 @@ const plugin = async (fastify) => {
   });
 
   /**
+   * PATCH /api/transactions/:id
+   * Update a transaction (amount, merchant_name, category, notes). User must own the transaction.
+   */
+  fastify.patch('/api/transactions/:id', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { id } = request.params;
+      const { amount, merchant_name, category, notes } = request.body || {};
+
+      const allowed = {};
+      if (amount !== undefined) {
+        const n = parseFloat(amount);
+        if (Number.isNaN(n) || n < 0) {
+          return reply.code(400).send({ error: 'Invalid amount' });
+        }
+        allowed.amount = n;
+      }
+      if (merchant_name !== undefined) allowed.merchant_name = String(merchant_name).trim() || null;
+      if (category !== undefined) allowed.category = String(category).trim() || null;
+      if (notes !== undefined) allowed.notes = String(notes).trim() || null;
+
+      if (Object.keys(allowed).length === 0) {
+        return reply.code(400).send({ error: 'No valid fields to update' });
+      }
+
+      allowed.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .update(allowed)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select('id, amount, merchant_name, category, notes, source_app, timestamp, created_at, updated_at')
+        .single();
+
+      if (error) throw error;
+      if (!data) {
+        return reply.code(404).send({ error: 'Transaction not found' });
+      }
+
+      return reply.send({ success: true, transaction: data });
+    } catch (error) {
+      console.error('❌ Transaction update error:', error.message);
+      return reply.code(error.code === 'PGRST116' ? 404 : 500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
    * GET /api/transactions/summary
    * Sum by category for date range
    * Query: from=YYYY-MM-DD, to=YYYY-MM-DD (default: current month)

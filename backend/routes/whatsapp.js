@@ -14,7 +14,7 @@ const {
   getLabelForOptionIndex,
   buildReceiptCategoryMessage
 } = require('../lib/whatsapp/clarificationFlow.js');
-const { sendWhatsAppText } = require('../lib/whatsapp/sendMessage.js');
+const { sendWhatsAppText, STOP_FOOTER } = require('../lib/whatsapp/sendMessage.js');
 const { getHelpMessage } = require('../lib/whatsapp/helpMessage.js');
 const { getFinalConfidence } = require('../lib/categorization/confidence.js');
 const { logParseFailure, logError, getParseFailureSummary } = require('../lib/logger.js');
@@ -228,9 +228,9 @@ const plugin = async (fastify, options) => {
                 );
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${receipt.amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} to *${receipt.merchant}*.\n\n${buildReceiptCategoryMessage()}`);
                 const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, category || 'Other', receipt.amount);
-                if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
+                if (alertMsg) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
                 if (justCreatedUser) {
-                  try { await sendWhatsAppText(senderId, getHelpMessage()); } catch (e) { /* ignore */ }
+                  try { await sendWhatsAppText(senderId, getHelpMessage(true)); } catch (e) { /* ignore */ }
                 }
               }
             } else {
@@ -489,7 +489,7 @@ const plugin = async (fastify, options) => {
           try {
             const { byCategory, total, start, end } = await getSpendingByCategory(supabase, cmdUser.id, reportOpt);
             const msg = formatReportMessage({ byCategory, total, start, end }, reportOpt.type);
-            await sendWhatsAppText(senderId, msg || 'No spending in this period.');
+            await sendWhatsAppText(senderId, (msg || 'No spending in this period.') + STOP_FOOTER);
           } catch (err) {
             console.error('Report error:', err.message);
             await sendWhatsAppText(senderId, `❌ Could not generate report: ${err.message}`);
@@ -652,7 +652,7 @@ const plugin = async (fastify, options) => {
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})`);
                 try {
                   const alertMsg = await getBudgetAlertAfterTransaction(supabase, cmdUser.id, intent.category, intent.amount);
-                  if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
+                  if (alertMsg) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
                 } catch (e) {
                   console.error('Budget alert check failed:', e.message);
                 }
@@ -843,7 +843,7 @@ const plugin = async (fastify, options) => {
             userId = newUser.id;
             console.log(`👤 Created new user: ${userId}`);
             try {
-              await sendWhatsAppText(senderId, getHelpMessage());
+              await sendWhatsAppText(senderId, getHelpMessage(true));
             } catch (e) {
               console.error('Welcome/help send failed:', e.message);
             }
@@ -960,7 +960,7 @@ const plugin = async (fastify, options) => {
           // Tier 1: Budget alert when approaching or exceeding limit
           try {
             const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, assignedCategory, parsed.amount);
-            if (alertMsg) await sendWhatsAppText(senderId, alertMsg);
+            if (alertMsg) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
           } catch (err) {
             console.error('Budget alert check failed:', err.message);
           }

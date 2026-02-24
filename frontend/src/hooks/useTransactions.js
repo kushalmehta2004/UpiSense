@@ -5,6 +5,7 @@ export function useTransactions({ page = 1, limit = 20, category, from, to, sear
   const [data, setData] = useState({ transactions: [], pagination: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,9 +34,10 @@ export function useTransactions({ page = 1, limit = 20, category, from, to, sear
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [page, limit, category, from, to, search]);
+  }, [page, limit, category, from, to, search, refreshKey]);
 
-  return { ...data, loading, error };
+  const refetch = () => setRefreshKey((k) => k + 1);
+  return { ...data, loading, error, refetch };
 }
 
 export function useTransactionsSummary(params = {}) {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3, Terminal, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3, Terminal, ChevronDown, Scale, ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
 import { colors } from '../theme';
@@ -12,6 +13,8 @@ function getInitials(name) {
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 }
+
+const DANGER_SECTION_ID = 'settings-delete-account';
 
 export function Settings() {
   const { user, updateUser } = useAuthStore();
@@ -330,8 +333,78 @@ export function Settings() {
         </div>
       </motion.section>
 
+      {/* Legal & Compliance */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+        className="rounded-2xl border transition-all duration-200 hover:border-[rgba(0,212,160,0.2)]"
+        style={cardStyle}
+      >
+        <div className="flex items-center gap-2 mb-6">
+          <Scale className="w-5 h-5" style={{ color: colors.mint }} />
+          <h2 className="text-lg font-semibold" style={{ color: colors.text }}>Legal & Compliance</h2>
+        </div>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b" style={{ borderColor: colors.cardBorder }}>
+            <div>
+              <p className="font-medium text-sm" style={{ color: colors.text }}>Privacy Policy</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>How we collect, use, and protect your data</p>
+            </div>
+            <Link
+              to="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium shrink-0"
+              style={{ color: colors.mint }}
+            >
+              Open <ExternalLink className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b" style={{ borderColor: colors.cardBorder }}>
+            <div>
+              <p className="font-medium text-sm" style={{ color: colors.text }}>Terms of Service</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Rules for using UpiSense</p>
+            </div>
+            <Link
+              to="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium shrink-0"
+              style={{ color: colors.mint }}
+            >
+              Open <ExternalLink className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+            <div>
+              <p className="font-medium text-sm" style={{ color: colors.text }}>Request Data Deletion</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Delete your account and all associated data within 30 days</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => document.getElementById(DANGER_SECTION_ID)?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-4 py-2 rounded-xl border text-sm font-medium shrink-0 transition-colors hover:bg-orange-500/10"
+              style={{ borderColor: colors.orange, color: colors.orange }}
+            >
+              Delete Account
+            </button>
+          </div>
+        </div>
+        <div
+          className="mt-6 rounded-xl border-2 p-4"
+          style={{ background: 'rgba(0,212,160,0.06)', borderColor: colors.mint }}
+        >
+          <p className="font-semibold text-sm mb-1" style={{ color: colors.text }}>Your data, your control</p>
+          <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
+            You can request a copy of all data we hold about you, correct any inaccuracies, or delete your account at any time. Email <a href="mailto:privacy@upisense.app" className="font-medium hover:opacity-90" style={{ color: colors.mint }}>privacy@upisense.app</a> for any data requests.
+          </p>
+        </div>
+      </motion.section>
+
       {/* Card 4: Danger zone */}
       <motion.section
+        id={DANGER_SECTION_ID}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}

@@ -7,10 +7,10 @@ const TEXT = '#F9FAFB';
 const MUTED = '#9CA3AF';
 
 const productLinks = [
-  { label: 'How it works', href: '#how-it-works' },
-  { label: 'Dashboard', href: '/login' },
-  { label: 'Privacy Policy', href: '#' },
-  { label: 'Terms of Service', href: '#' },
+  { label: 'How it works', to: '/#how-it-works' },
+  { label: 'Dashboard', to: '/login' },
+  { label: 'Privacy Policy', to: '/privacy' },
+  { label: 'Terms of Service', to: '/terms' },
 ];
 
 const supportLinks = [
@@ -53,7 +53,11 @@ export function Footer() {
             <ul className="space-y-2">
               {productLinks.map((l) => (
                 <li key={l.label}>
-                  <a href={l.href} className="text-sm hover:opacity-90 transition-opacity" style={{ color: MUTED }}>{l.label}</a>
+                  {'to' in l && l.to ? (
+                    <Link to={l.to} className="text-sm hover:opacity-90 transition-opacity" style={{ color: MUTED }}>{l.label}</Link>
+                  ) : (
+                    <a href={l.href} className="text-sm hover:opacity-90 transition-opacity" style={{ color: MUTED }}>{l.label}</a>
+                  )}
                 </li>
               ))}
             </ul>
@@ -78,9 +82,20 @@ export function Footer() {
             </ul>
           </div>
         </div>
-        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm" style={{ color: MUTED }}>
-          <span>© 2026 UpiSense. All rights reserved.</span>
-          
+        <div className="mt-12 pt-8 border-t border-white/10 space-y-3">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm" style={{ color: MUTED }}>
+            <Link to="/privacy" className="hover:opacity-90">Privacy Policy</Link>
+            <span>|</span>
+            <Link to="/terms" className="hover:opacity-90">Terms of Service</Link>
+            <span>|</span>
+            <a href="mailto:support@upisense.app" className="hover:opacity-90">Contact</a>
+          </div>
+          <p className="text-[11px] text-center max-w-2xl mx-auto" style={{ color: '#4B5563' }}>
+            UpiSense is not a bank, financial institution, or payment processor. Transaction data is for informational purposes only and is not a substitute for official bank statements. AI-powered categorization may not always be accurate.
+          </p>
+          <p className="text-[11px] text-center" style={{ color: '#4B5563' }}>
+            © 2026 UpiSense. Built in India 🇮🇳 | Data stored in India | DPDP Act 2023 compliant
+          </p>
         </div>
       </div>
     </footer>

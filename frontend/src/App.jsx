@@ -8,6 +8,8 @@ import { Login } from './pages/Login';
 import { FAQ } from './pages/FAQ';
 import { WhatsAppSupport } from './pages/WhatsAppSupport';
 import { Contact } from './pages/Contact';
+import { Privacy } from './pages/Privacy';
+import { Terms } from './pages/Terms';
 import { Dashboard } from './pages/Dashboard';
 import { Transactions } from './pages/Transactions';
 import { Debts } from './pages/Debts';
@@ -28,6 +30,8 @@ function App() {
         <Route path="/faq" element={<FAQ />} />
         <Route path="/whatsapp-support" element={<WhatsAppSupport />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route path="dashboard" element={<Dashboard />} />

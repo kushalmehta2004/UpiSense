@@ -1,8 +1,8 @@
 import { format, startOfWeek, startOfMonth, subMonths } from 'date-fns';
 import { useTransactions } from '../hooks/useTransactions';
 import { useEffect, useState } from 'react';
-import { Search, Zap, Banknote } from 'lucide-react';
-import { categories } from '../utils/api';
+import { Search, Zap, Banknote, Pencil } from 'lucide-react';
+import { categories, transactions as txApi } from '../utils/api';
 import { colors, getCategoryColor, getWhatsAppUrl } from '../theme';
 
 function isCashTxn(txn) {
@@ -40,7 +40,7 @@ const CATEGORY_EMOJI = {
   Other: '📌',
 };
 
-function TransactionItem({ txn, cardStyle = false }) {
+function TransactionItem({ txn, cardStyle = false, onEdit }) {
   const date = txn.timestamp || txn.created_at;
   const catColor = getCategoryColor(txn.category);
   const emoji = CATEGORY_EMOJI[txn.category] || '📌';
@@ -85,9 +85,22 @@ function TransactionItem({ txn, cardStyle = false }) {
           )}
         </div>
       </div>
-      <p className="font-mono font-bold tabular-nums shrink-0" style={{ color: colors.orange, fontSize: cardStyle ? 18 : 15 }}>
-        -{formatAmount(txn.amount)}
-      </p>
+      <div className="flex items-center gap-2 shrink-0">
+        <p className="font-mono font-bold tabular-nums" style={{ color: colors.orange, fontSize: cardStyle ? 18 : 15 }}>
+          -{formatAmount(txn.amount)}
+        </p>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(txn)}
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/10"
+            style={{ color: colors.textSecondary }}
+            aria-label="Edit transaction"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        )}
+      </div>
     </>
   );
 
@@ -175,7 +188,7 @@ export function TransactionFeed({ compact = false }) {
   const preset = TIME_PRESETS.find((p) => p.value === timePreset);
   const range = preset?.getRange ? preset.getRange() : timePreset === 'custom' ? { from: customFrom || undefined, to: customTo || undefined } : { from: undefined, to: undefined };
 
-  const { transactions, pagination, loading, error } = useTransactions({
+  const { transactions, pagination, loading, error, refetch } = useTransactions({
     page,
     limit: 20,
     category: categoryFilter || undefined,
@@ -183,6 +196,10 @@ export function TransactionFeed({ compact = false }) {
     to: range.to,
     search: search || undefined,
   });
+
+  const [editTxn, setEditTxn] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const filteredBySource =
     sourceFilter === 'cash'
@@ -219,6 +236,34 @@ export function TransactionFeed({ compact = false }) {
   const handleTimePresetChange = (e) => {
     setTimePreset(e.target.value);
     setPage(1);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editTxn?.id) return;
+    setEditError(null);
+    setEditSaving(true);
+    const form = e.target;
+    const payload = {
+      amount: form.amount?.value ? parseFloat(form.amount.value) : undefined,
+      merchant_name: form.merchant_name?.value?.trim(),
+      category: form.category?.value?.trim() || undefined,
+      notes: form.notes?.value?.trim() || undefined,
+    };
+    if (payload.amount !== undefined && (Number.isNaN(payload.amount) || payload.amount < 0)) {
+      setEditError('Invalid amount');
+      setEditSaving(false);
+      return;
+    }
+    try {
+      await txApi.update(editTxn.id, payload);
+      refetch();
+      setEditTxn(null);
+    } catch (err) {
+      setEditError(err.response?.data?.error || err.message);
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   if (error) {
@@ -342,8 +387,102 @@ export function TransactionFeed({ compact = false }) {
       ) : (
         <div className={compact ? 'space-y-0' : 'space-y-2'}>
           {list.map((txn) => (
-            <TransactionItem key={txn.id} txn={txn} cardStyle={!compact} />
+            <TransactionItem
+              key={txn.id}
+              txn={txn}
+              cardStyle={!compact}
+              onEdit={!compact ? (t) => setEditTxn(t) : undefined}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Edit transaction modal */}
+      {editTxn && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => !editSaving && setEditTxn(null)}
+        >
+          <div
+            className="rounded-2xl border w-full max-w-md p-6 shadow-xl"
+            style={{ background: colors.cardBg, borderColor: colors.cardBorder }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4" style={{ color: colors.text }}>Edit transaction</h3>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Merchant / payee</label>
+                <input
+                  type="text"
+                  name="merchant_name"
+                  defaultValue={editTxn.merchant_name || ''}
+                  className="w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2"
+                  style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
+                  placeholder="e.g. Zomato"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Amount (₹)</label>
+                <input
+                  type="number"
+                  name="amount"
+                  defaultValue={editTxn.amount ?? ''}
+                  min="0"
+                  step="0.01"
+                  className="w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2"
+                  style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Category</label>
+                <select
+                  name="category"
+                  defaultValue={editTxn.category || ''}
+                  className="w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2"
+                  style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
+                >
+                  <option value="">Uncategorized</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Notes (optional)</label>
+                <input
+                  type="text"
+                  name="notes"
+                  defaultValue={editTxn.notes || ''}
+                  className="w-full px-4 py-2.5 rounded-xl border outline-none focus:ring-2"
+                  style={{ background: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }}
+                  placeholder="e.g. Dinner with friends"
+                />
+              </div>
+              {editError && (
+                <p className="text-sm" style={{ color: colors.orange }}>{editError}</p>
+              )}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditTxn(null)}
+                  disabled={editSaving}
+                  className="flex-1 py-2.5 rounded-xl border text-sm font-medium disabled:opacity-50"
+                  style={{ borderColor: colors.cardBorder, color: colors.text }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                  style={{ background: colors.mint, color: colors.pageBg }}
+                >
+                  {editSaving ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

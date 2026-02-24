@@ -1,8 +1,39 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { TrendingDown, ArrowLeftRight, ArrowDownLeft, ArrowUpRight, MessageCircle, Users, Share2 } from 'lucide-react';
 import { colors } from '../../theme';
+
+// Active segment shape: pops out 8px + glow (matches CategoryChart)
+function renderPreviewActiveShape(props) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  const RAD = Math.PI / 180;
+  const innerR = Math.max(0, Number(innerRadius) || 0);
+  const outerR = (Number(outerRadius) || 0) + 8;
+  const x1 = cx + outerR * Math.cos(-startAngle * RAD);
+  const y1 = cy + outerR * Math.sin(-startAngle * RAD);
+  const x2 = cx + outerR * Math.cos(-endAngle * RAD);
+  const y2 = cy + outerR * Math.sin(-endAngle * RAD);
+  const x3 = cx + innerR * Math.cos(-endAngle * RAD);
+  const y3 = cy + innerR * Math.sin(-endAngle * RAD);
+  const x4 = cx + innerR * Math.cos(-startAngle * RAD);
+  const y4 = cy + innerR * Math.sin(-startAngle * RAD);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  const pathD = `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+  return (
+    <path
+      d={pathD}
+      fill={fill}
+      stroke="rgba(255,255,255,0.15)"
+      strokeWidth={1.5}
+      style={{
+        filter: `drop-shadow(0 0 8px ${fill}99)`,
+        transition: 'all 200ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+      }}
+    />
+  );
+}
 
 const PREVIEW_CARD_BG = '#111827';
 const PREVIEW_BORDER = 'rgba(255,255,255,0.06)';
@@ -56,6 +87,7 @@ const DEMO_DAILY_AVG = Math.round(DEMO_TOTAL / 28);
 const focusDate = new Date();
 
 export function DashboardPreview() {
+  const [previewPieActiveIndex, setPreviewPieActiveIndex] = useState(null);
   return (
     <section className="py-24 px-4 sm:px-6" style={{ background: colors.pageBg }}>
       <div className="max-w-6xl mx-auto">
@@ -218,6 +250,10 @@ export function DashboardPreview() {
                         dataKey="value"
                         nameKey="name"
                         isAnimationActive={false}
+                        activeIndex={previewPieActiveIndex}
+                        activeShape={renderPreviewActiveShape}
+                        onMouseEnter={(_, index) => setPreviewPieActiveIndex(index)}
+                        onMouseLeave={() => setPreviewPieActiveIndex(null)}
                       >
                         {DEMO_CHART_DATA.map((entry, i) => (
                           <Cell
@@ -225,6 +261,8 @@ export function DashboardPreview() {
                             fill={entry.fill}
                             stroke={PREVIEW_CARD_BG}
                             strokeWidth={2}
+                            opacity={previewPieActiveIndex != null && previewPieActiveIndex !== i ? 0.35 : 1}
+                            style={{ transition: 'opacity 200ms' }}
                           />
                         ))}
                       </Pie>
@@ -233,31 +271,65 @@ export function DashboardPreview() {
                   <div
                     className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
                   >
-                    <p className="text-[26px] font-bold font-mono tabular-nums" style={{ color: colors.text }}>
-                      ₹{DEMO_TOTAL.toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: '#6B7280', fontFamily: 'Satoshi, system-ui, sans-serif' }}>
-                      total spent
-                    </p>
+                    {previewPieActiveIndex !== null && DEMO_CHART_DATA[previewPieActiveIndex] ? (
+                      <div className="text-center">
+                        <p
+                          className="text-2xl font-bold font-mono tabular-nums"
+                          style={{ color: DEMO_CHART_DATA[previewPieActiveIndex].fill }}
+                        >
+                          ₹{DEMO_CHART_DATA[previewPieActiveIndex].value.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: '#9CA3AF', fontFamily: 'Satoshi, system-ui, sans-serif' }}>
+                          {DEMO_CHART_DATA[previewPieActiveIndex].name}
+                        </p>
+                        <p className="text-[11px] mt-0.5" style={{ color: '#4B5563', fontFamily: 'Satoshi, system-ui, sans-serif' }}>
+                          {(DEMO_CHART_DATA[previewPieActiveIndex].percent * 100).toFixed(0)}% of total
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[26px] font-bold font-mono tabular-nums" style={{ color: colors.text }}>
+                          ₹{DEMO_TOTAL.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: '#6B7280', fontFamily: 'Satoshi, system-ui, sans-serif' }}>
+                          total spent
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0 md:max-w-[180px]">
                   <div className="grid grid-cols-1 gap-1">
-                    {DEMO_CHART_DATA.map((item) => (
+                    {DEMO_CHART_DATA.map((item, i) => (
                       <div
                         key={item._key}
-                        className="flex items-center gap-2.5 py-2 px-2 rounded-lg"
-                        style={{ fontFamily: 'Satoshi, system-ui, sans-serif' }}
+                        role="button"
+                        tabIndex={0}
+                        className="flex items-center gap-2.5 py-2 px-2 rounded-lg cursor-pointer transition-colors duration-200"
+                        style={{
+                          background: previewPieActiveIndex === i ? 'rgba(255,255,255,0.03)' : 'transparent',
+                          fontFamily: 'Satoshi, system-ui, sans-serif',
+                        }}
+                        onMouseEnter={() => setPreviewPieActiveIndex(i)}
+                        onMouseLeave={() => setPreviewPieActiveIndex(null)}
+                        onFocus={() => setPreviewPieActiveIndex(i)}
+                        onBlur={() => setPreviewPieActiveIndex(null)}
                       >
                         <div
                           className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ background: item.fill }}
+                          style={{
+                            background: item.fill,
+                            boxShadow: previewPieActiveIndex === i ? `0 0 0 3px ${item.fill}40` : 'none',
+                          }}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] truncate" style={{ color: '#D1D5DB' }}>
+                          <p
+                            className="text-[13px] truncate"
+                            style={{ color: previewPieActiveIndex === i ? colors.text : '#D1D5DB' }}
+                          >
                             {item.name}
                           </p>
-                          <p className="text-xs font-mono tabular-nums" style={{ color: '#6B7280' }}>
+                          <p className="text-xs font-mono tabular-nums" style={{ color: previewPieActiveIndex === i ? '#9CA3AF' : '#6B7280' }}>
                             ₹{item.value.toLocaleString('en-IN')}
                           </p>
                         </div>

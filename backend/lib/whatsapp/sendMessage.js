@@ -5,6 +5,9 @@
 
 const axios = require('axios');
 
+/** Footer for weekly reports and alerts (per legal/compliance). */
+const STOP_FOOTER = '\n\nReply STOP to unsubscribe.';
+
 const META_API_BASE = 'https://graph.facebook.com/v18.0';
 
 /**
@@ -55,4 +58,4 @@ async function sendWhatsAppText(to, body) {
   }
 }
 
-module.exports = { sendWhatsAppText };
+module.exports = { sendWhatsAppText, STOP_FOOTER };

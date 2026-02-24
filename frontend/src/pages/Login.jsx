@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
 
@@ -7,6 +7,7 @@ export function Login() {
   const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [logoSrc, setLogoSrc] = useState('/logo.png');
@@ -19,6 +20,10 @@ export function Login() {
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setError('');
+    if (!agreedToTerms) {
+      setError('Please agree to the Terms of Service and Privacy Policy to continue');
+      return;
+    }
     if (!phone || phone.length < 10) {
       setError('Enter a valid 10-digit phone number');
       return;
@@ -79,6 +84,20 @@ export function Login() {
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-slate-800"
                 maxLength={15}
               />
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 rounded border-slate-300 text-teal-500 focus:ring-teal-500"
+                />
+                <span className="text-sm text-slate-600">
+                  I have read and agree to the <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-teal-600 font-medium hover:underline">Terms of Service</Link> and <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-teal-600 font-medium hover:underline">Privacy Policy</Link>
+                </span>
+              </label>
+              <p className="text-[11px]" style={{ color: '#6B7280' }}>
+                By signing up, you consent to receive WhatsApp messages from UpiSense. Reply STOP at any time to unsubscribe.
+              </p>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"
