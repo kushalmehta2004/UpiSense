@@ -253,7 +253,7 @@ export function Dashboard() {
 
       {/* Row 2: Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-[55%_1fr] gap-6">
-        <WeeklyTrend days={7} from={from} to={to} />
+        <WeeklyTrend days={7} />
         <CategoryChart from={from} to={to} />
       </div>
 
