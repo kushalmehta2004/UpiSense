@@ -35,7 +35,7 @@ export function WeeklyTrend({ days = 7, from, to }) {
   if (loading) {
     return (
       <div
-        className="h-64 flex items-center justify-center rounded-2xl border animate-pulse"
+        className="h-full min-h-64 flex items-center justify-center rounded-2xl border animate-pulse"
         style={{ background: colors.cardBg, borderColor: colors.cardBorder }}
       >
         <div className="w-8 h-8 border-2 rounded-full border-t-transparent" style={{ borderColor: colors.mint }} />
@@ -46,7 +46,7 @@ export function WeeklyTrend({ days = 7, from, to }) {
   if (error) {
     return (
       <div
-        className="h-64 flex items-center justify-center rounded-2xl border text-sm"
+        className="h-full min-h-64 flex items-center justify-center rounded-2xl border text-sm"
         style={{ background: colors.cardBg, borderColor: colors.cardBorder, color: colors.orange }}
       >
         {error}
@@ -61,15 +61,15 @@ export function WeeklyTrend({ days = 7, from, to }) {
 
   return (
     <div
-      className="rounded-2xl border p-6 transition-all duration-200 hover:border-[rgba(0,212,160,0.2)] hover:-translate-y-0.5"
+      className="h-full flex flex-col rounded-2xl border p-6 transition-all duration-200 hover:border-[rgba(0,212,160,0.2)] hover:-translate-y-0.5"
       style={{ background: colors.cardBg, borderColor: colors.cardBorder, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
     >
-      <h3 className="text-sm font-medium mb-4" style={{ color: colors.textSecondary }}>
+      <h3 className="text-sm font-medium mb-3 text-center shrink-0" style={{ color: colors.textSecondary }}>
         {from && to ? `Daily Spend — ${format(new Date(from), 'MMM yyyy')}` : `Daily Spend — Last ${days} Days`}
       </h3>
-      <div className="w-full overflow-hidden" style={{ width: '100%', height: 224, minHeight: 224, minWidth: 1 }}>
-        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-          <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+      <div className="flex-1 min-h-0 w-full overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis
               dataKey="label"
@@ -78,6 +78,7 @@ export function WeeklyTrend({ days = 7, from, to }) {
               tickLine={false}
             />
             <YAxis
+              width={45}
               tick={{ fontSize: 12, fill: colors.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}
               tickFormatter={(v) => `₹${v >= 1000 ? `${v / 1000}k` : v}`}
               axisLine={false}
@@ -88,7 +89,7 @@ export function WeeklyTrend({ days = 7, from, to }) {
               dataKey="amount"
               fill={`url(#barGradient)`}
               radius={[6, 6, 0, 0]}
-              maxBarSize={48}
+              barSize={36}
               animationDuration={500}
               animationBegin={0}
               isAnimationActive

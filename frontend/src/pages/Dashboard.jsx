@@ -251,7 +251,7 @@ export function Dashboard() {
         </motion.div>
       </div>
 
-      {/* Row 2: Charts */}
+      {/* Row 2: Charts — same row height so both cards match */}
       <div className="grid grid-cols-1 lg:grid-cols-[55%_1fr] gap-6">
         <WeeklyTrend days={7} />
         <CategoryChart from={from} to={to} />

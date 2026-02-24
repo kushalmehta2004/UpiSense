@@ -193,7 +193,7 @@ export function CategoryChart({ from: fromProp, to: toProp }) {
   return (
     <div
       ref={cardRef}
-      className="rounded-[20px] border p-5 md:p-7 transition-all duration-250 hover:shadow-[0_0_0_1px_rgba(0,212,160,0.15)]"
+      className="h-full rounded-[20px] border p-5 md:p-7 transition-all duration-250 hover:shadow-[0_0_0_1px_rgba(0,212,160,0.15)]"
       style={{ background: CARD_BG, borderColor: BORDER }}
     >
       {/* Card header */}
