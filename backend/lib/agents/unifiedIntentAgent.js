@@ -46,15 +46,18 @@ async function parseWithUnifiedAgent(text) {
   const prompt = `You are a financial assistant. The user sends messages about payments, group expenses, or informal debt (IOUs). Your job is to interpret the message and output ONE structured JSON object that matches our schema.
 
 Output schema (use exactly these field names):
-- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "none"
+- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "paid_back" | "i_paid_back" | "none"
 - amount: number (INR) – required for all except type "none"
 - For type "transaction": merchant_name (required – who/where; if unknown use "none" type), category. Always use "Food & Dining" for restaurant, cafe, dinner, food, eatery, bar, pub. Use "Transport" for cab, auto, uber, ola. Use "Health" for pharmacy, medicine.
+- IMPORTANT: "paid back" and "returned" are DEBT SETTLEMENTS, not expenses. Use type "paid_back" when someone who OWES the user pays them back (e.g. "Kushal paid back 1230", "Ravi returned my 500", "Priya paid me back 200"). Use type "i_paid_back" when the user pays back someone they owe (e.g. "I paid back Samkit 300", "I returned 500 to Raj"). Do NOT use type "transaction" for these – they are not transport or any expense category.
 - If the user says what the payment was for (e.g. "for dinner", "for groceries", "for petrol"), infer the category from that and set "is_p2p": false so we do NOT ask what it was for. E.g. "I paid Rachit 200 for dinner" → category "Food & Dining", merchant_name "Rachit", is_p2p false. "Paid John 500 for groceries" → category "Groceries", is_p2p false.
 - If the recipient is clearly a person's name and the user did NOT state what it was for, add "is_p2p": true so we ask what it was for.
 - For "500" alone or message with only an amount and no recipient, return {"type":"none"} – do not guess.
 - For type "group_expense": group_name, description, shares (array or null). "friend owes me 200" = friend's share 200; "I owe 100 to Samkit" = my share 100. Sum of shares = amount.
 - For type "owed_to_me": person_name (who owes the user). E.g. "Samkit owes me 500" → person_name "Samkit", amount 500. "Someone owes me 200" → person_name "Someone".
 - For type "i_owe": person_name (who the user owes). E.g. "I owe Raj 500" → person_name "Raj", amount 500. "I owe someone 500" → person_name "Someone".
+- For type "paid_back": person_name (who paid the user back – someone who owed them). E.g. "Kushal paid back 1230" → person_name "Kushal", amount 1230. "Ravi returned my 500" → person_name "Ravi", amount 500. "Priya paid me back" with amount → person_name "Priya", amount.
+- For type "i_paid_back": person_name (who the user paid back – someone they owed). E.g. "I paid back Samkit 300" → person_name "Samkit", amount 300. "I returned 500 to Raj" → person_name "Raj", amount 500.
 
 Examples:
 - "100 to john" → {"type":"transaction","amount":100,"merchant_name":"john","category":"Other","is_p2p":true}
@@ -66,12 +69,17 @@ Examples:
 - "Raj owes me 200" → {"type":"owed_to_me","person_name":"Raj","amount":200}
 - "I owe Priya 500" → {"type":"i_owe","person_name":"Priya","amount":500}
 - "I owe someone 500" → {"type":"i_owe","person_name":"Someone","amount":500}
+- "Kushal paid back 1230" → {"type":"paid_back","person_name":"Kushal","amount":1230}
+- "Ravi returned my 500" → {"type":"paid_back","person_name":"Ravi","amount":500}
+- "I paid back Samkit 300" → {"type":"i_paid_back","person_name":"Samkit","amount":300}
+- "I returned 500 to Raj" → {"type":"i_paid_back","person_name":"Raj","amount":500}
 - "Paid 500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
 - "i paid 500 at a restaurant in group 306 for dinner where my friend owes me 200" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"306","description":"dinner","shares":[{"person":"friend","amount":200},{"person":"me","amount":300}]}
 
 If the message is clearly NOT a payment, group expense, or IOU (e.g. "hello", "500" alone), return exactly: {"type":"none"}
 Do NOT return type "transaction" with merchant_name "Unknown" or empty – return "none" instead so we can ask who they paid.
 Prefer "owed_to_me" when someone owes the user (e.g. "X owes me Y"). Prefer "i_owe" when the user owes someone (e.g. "I owe X Y").
+Prefer "paid_back" when someone who owed the user returns money (e.g. "X paid back Y", "X returned my Y"). Prefer "i_paid_back" when the user pays back someone they owe (e.g. "I paid back X Y", "I returned Y to X").
 
 Return ONLY valid JSON. No markdown, no code block, no explanation.`;
 
@@ -140,6 +148,16 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
     if (parsed.type === 'i_owe') {
       const person_name = (parsed.person_name || 'Someone').trim();
       return { type: 'i_owe', person_name, amount };
+    }
+
+    if (parsed.type === 'paid_back') {
+      const person_name = (parsed.person_name || 'Someone').trim();
+      return { type: 'paid_back', person_name, amount };
+    }
+
+    if (parsed.type === 'i_paid_back') {
+      const person_name = (parsed.person_name || 'Someone').trim();
+      return { type: 'i_paid_back', person_name, amount };
     }
 
     return null;

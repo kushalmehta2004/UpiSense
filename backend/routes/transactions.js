@@ -136,6 +136,32 @@ const plugin = async (fastify) => {
   });
 
   /**
+   * DELETE /api/transactions/:id
+   * Delete a transaction. User must own the transaction.
+   */
+  fastify.delete('/api/transactions/:id', {
+    preHandler: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { userId } = request.user;
+      const { id } = request.params;
+
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      return reply.send({ success: true });
+    } catch (error) {
+      console.error('❌ Transaction delete error:', error.message);
+      return reply.code(error.code === 'PGRST116' ? 404 : 500).send({ error: error.message || 'Server error' });
+    }
+  });
+
+  /**
    * GET /api/transactions/summary
    * Sum by category for date range
    * Query: from=YYYY-MM-DD, to=YYYY-MM-DD (default: current month)

@@ -659,6 +659,16 @@ const plugin = async (fastify, options) => {
                 await sendWhatsAppText(senderId, `✅ Recorded: You owe *${intent.person_name}* ₹${intent.amount.toLocaleString('en-IN')}. Reply _who I owe_ to see your list.`);
                 return reply.send({ success: true });
               }
+              if (intent.type === 'paid_back') {
+                await addDebtEntry(supabase, cmdUser.id, 'owed_to_me', intent.person_name, -intent.amount);
+                await sendWhatsAppText(senderId, `✅ Recorded: *${intent.person_name}* paid you back ₹${intent.amount.toLocaleString('en-IN')}. Your balance with them has been updated. Reply _who owes me_ to see your list.`);
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'i_paid_back') {
+                await addDebtEntry(supabase, cmdUser.id, 'i_owe', intent.person_name, -intent.amount);
+                await sendWhatsAppText(senderId, `✅ Recorded: You paid back *${intent.person_name}* ₹${intent.amount.toLocaleString('en-IN')}. Your balance with them has been updated. Reply _who I owe_ to see your list.`);
+                return reply.send({ success: true });
+              }
               if (intent.type === 'group_expense') {
                 if (!ENABLE_GROUPS) {
                   await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");

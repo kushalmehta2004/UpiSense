@@ -1,7 +1,7 @@
 import { format, startOfWeek, startOfMonth, subMonths } from 'date-fns';
 import { useTransactions } from '../hooks/useTransactions';
 import { useEffect, useState } from 'react';
-import { Search, Zap, Banknote, Pencil } from 'lucide-react';
+import { Search, Zap, Banknote, Pencil, Trash2 } from 'lucide-react';
 import { categories, transactions as txApi } from '../utils/api';
 import { colors, getCategoryColor, getWhatsAppUrl } from '../theme';
 
@@ -40,7 +40,7 @@ const CATEGORY_EMOJI = {
   Other: '📌',
 };
 
-function TransactionItem({ txn, cardStyle = false, onEdit }) {
+function TransactionItem({ txn, cardStyle = false, onEdit, onDelete, isDeleting }) {
   const date = txn.timestamp || txn.created_at;
   const catColor = getCategoryColor(txn.category);
   const emoji = CATEGORY_EMOJI[txn.category] || '📌';
@@ -98,6 +98,18 @@ function TransactionItem({ txn, cardStyle = false, onEdit }) {
             aria-label="Edit transaction"
           >
             <Pencil className="w-4 h-4" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(txn)}
+            disabled={isDeleting}
+            className="p-1.5 rounded-lg transition-colors hover:bg-red-500/20 disabled:opacity-50"
+            style={{ color: colors.textSecondary }}
+            aria-label="Delete transaction"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -200,6 +212,7 @@ export function TransactionFeed({ compact = false }) {
   const [editTxn, setEditTxn] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const filteredBySource =
     sourceFilter === 'cash'
@@ -263,6 +276,20 @@ export function TransactionFeed({ compact = false }) {
       setEditError(err.response?.data?.error || err.message);
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleDelete = async (txn) => {
+    if (!txn?.id) return;
+    if (!window.confirm(`Delete transaction: ${txn.merchant_name || 'Unknown'} -₹${Number(txn.amount).toLocaleString('en-IN')}?`)) return;
+    setDeletingId(txn.id);
+    try {
+      await txApi.delete(txn.id);
+      refetch();
+    } catch (err) {
+      setEditError(err.response?.data?.error || err.message || 'Failed to delete');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -392,6 +419,8 @@ export function TransactionFeed({ compact = false }) {
               txn={txn}
               cardStyle={!compact}
               onEdit={!compact ? (t) => setEditTxn(t) : undefined}
+              onDelete={!compact ? handleDelete : undefined}
+              isDeleting={deletingId === txn.id}
             />
           ))}
         </div>

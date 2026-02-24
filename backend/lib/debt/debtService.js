@@ -18,7 +18,7 @@ async function addDebtEntry(supabase, userId, direction, personName, amount, not
 }
 
 /**
- * Get all "owed to me" entries, summed by person
+ * Get all "owed to me" entries, summed by person (only positive balances)
  */
 async function getOwedToMe(supabase, userId) {
   const { data } = await supabase
@@ -31,11 +31,13 @@ async function getOwedToMe(supabase, userId) {
     const name = (row.person_name || 'Someone').trim();
     byPerson[name] = (byPerson[name] || 0) + Number(row.amount);
   }
-  return Object.entries(byPerson).map(([person_name, amount]) => ({ person_name, amount: Math.round(amount * 100) / 100 }));
+  return Object.entries(byPerson)
+    .filter(([, amount]) => amount > 0)
+    .map(([person_name, amount]) => ({ person_name, amount: Math.round(amount * 100) / 100 }));
 }
 
 /**
- * Get all "I owe" entries, summed by person
+ * Get all "I owe" entries, summed by person (only positive balances)
  */
 async function getIOwe(supabase, userId) {
   const { data } = await supabase
@@ -48,7 +50,9 @@ async function getIOwe(supabase, userId) {
     const name = (row.person_name || 'Someone').trim();
     byPerson[name] = (byPerson[name] || 0) + Number(row.amount);
   }
-  return Object.entries(byPerson).map(([person_name, amount]) => ({ person_name, amount: Math.round(amount * 100) / 100 }));
+  return Object.entries(byPerson)
+    .filter(([, amount]) => amount > 0)
+    .map(([person_name, amount]) => ({ person_name, amount: Math.round(amount * 100) / 100 }));
 }
 
 /**
