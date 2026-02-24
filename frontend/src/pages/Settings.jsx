@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3, Terminal, ChevronDown, Scale, ExternalLink } from 'lucide-react';
+import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3, Terminal, ChevronDown, Scale, ExternalLink, LogOut } from 'lucide-react';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
 import { colors } from '../theme';
@@ -85,6 +85,11 @@ export function Settings() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
   };
 
   const cardStyle = {
@@ -404,6 +409,33 @@ export function Settings() {
           <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
             You can request a copy of all data we hold about you, correct any inaccuracies, or delete your account at any time. Email <a href="mailto:privacy@upisense.app" className="font-medium hover:opacity-90" style={{ color: colors.mint }}>privacy@upisense.app</a> for any data requests.
           </p>
+        </div>
+      </motion.section>
+
+      {/* Mobile only: Log out — desktop uses sidebar logout */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.14 }}
+        className="md:hidden rounded-2xl border transition-all duration-200"
+        style={cardStyle}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <LogOut className="w-5 h-5 shrink-0" style={{ color: colors.textSecondary }} />
+            <div>
+              <p className="font-medium text-sm" style={{ color: colors.text }}>Log out</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Sign out of your account on this device</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-xl border text-sm font-medium transition-colors hover:bg-red-500/10 shrink-0"
+            style={{ borderColor: colors.orange, color: colors.orange }}
+          >
+            Log out
+          </button>
         </div>
       </motion.section>
 
