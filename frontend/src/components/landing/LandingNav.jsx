@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 
@@ -8,12 +8,20 @@ const DARK = '#0A0F1E';
 const TEXT = '#F9FAFB';
 
 export function LandingNav() {
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoSrc, setLogoSrc] = useState('/logo.png');
 
+  const handleLogoClick = (e) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
+  };
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 80);
+    const onScroll = () => setScrolled(window.scrollY > 0);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -23,7 +31,7 @@ export function LandingNav() {
       className={`fixed top-0 left-0 right-0 z-50 border-b border-white/5 transition-all duration-300 ${scrolled ? 'bg-[#0A0F1E]/85 backdrop-blur-[20px]' : ''}`}
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20 min-h-[5rem]">
-        <Link to="/" className="flex items-center gap-3 font-bold text-xl tracking-tight" style={{ fontFamily: 'Clash Display, sans-serif' }}>
+        <Link to="/" onClick={handleLogoClick} className="flex items-center gap-3 font-bold text-xl tracking-tight" style={{ fontFamily: 'Clash Display, sans-serif' }}>
           <img
             src={logoSrc}
             alt="UpiSense"
@@ -34,7 +42,7 @@ export function LandingNav() {
         </Link>
         <nav className="hidden md:flex items-center gap-8">
           <a href="#how-it-works" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>How it works</a>
-          <a href="#pricing" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>Pricing</a>
+          <Link to="/pricing" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>Pricing</Link>
           <Link
             to="/login"
             className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(0,212,160,0.4)]"
@@ -61,7 +69,7 @@ export function LandingNav() {
           style={{ background: DARK }}
         >
           <a href="#how-it-works" onClick={() => setMenuOpen(false)} className="py-3 font-medium" style={{ color: TEXT }}>How it works</a>
-          <a href="#pricing" onClick={() => setMenuOpen(false)} className="py-3 font-medium" style={{ color: TEXT }}>Pricing</a>
+          <Link to="/pricing" onClick={() => setMenuOpen(false)} className="py-3 font-medium block" style={{ color: TEXT }}>Pricing</Link>
           <Link to="/login" onClick={() => setMenuOpen(false)} className="py-3 font-semibold rounded-full text-center" style={{ background: MINT, color: DARK }}>Get early access →</Link>
         </motion.div>
       )}

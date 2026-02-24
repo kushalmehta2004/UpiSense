@@ -72,8 +72,10 @@ export function Login() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-900/20 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src={logoSrc} alt="" className="h-16 w-16 mx-auto mb-4 object-contain rounded-xl" onError={() => setLogoSrc('/logo.svg')} />
-          <h1 className="text-3xl font-bold text-white">UpiSense</h1>
+          <Link to="/" className="inline-block focus:outline-none focus:ring-2 focus:ring-teal-500/50 rounded-xl">
+            <img src={logoSrc} alt="UpiSense" className="h-16 w-16 mx-auto mb-4 object-contain rounded-xl" onError={() => setLogoSrc('/logo.svg')} />
+            <h1 className="text-3xl font-bold text-white">UpiSense</h1>
+          </Link>
           <p className="text-slate-400 mt-1">Track every rupee. Zero effort.</p>
         </div>
 

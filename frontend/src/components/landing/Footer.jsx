@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Twitter, Linkedin, Instagram } from 'lucide-react';
 
 const MINT = '#00D4A0';
@@ -8,6 +8,7 @@ const MUTED = '#9CA3AF';
 
 const productLinks = [
   { label: 'How it works', to: '/#how-it-works' },
+  { label: 'Pricing', to: '/pricing' },
   { label: 'Dashboard', to: '/login' },
   { label: 'Privacy Policy', to: '/privacy' },
   { label: 'Terms of Service', to: '/terms' },
@@ -20,13 +21,21 @@ const supportLinks = [
 ];
 
 export function Footer() {
+  const location = useLocation();
   const [logoSrc, setLogoSrc] = useState('/logo.png');
+
+  const handleLogoClick = (e) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
+  };
   return (
     <footer className="py-16 px-4 sm:px-6" style={{ background: '#0A0F1E' }}>
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
           <div>
-            <Link to="/" className="inline-flex items-center gap-2 font-bold text-xl mb-3" style={{ fontFamily: 'Clash Display, sans-serif' }}>
+            <Link to="/" onClick={handleLogoClick} className="inline-flex items-center gap-2 font-bold text-xl mb-3" style={{ fontFamily: 'Clash Display, sans-serif' }}>
               <img
                 src={logoSrc}
                 alt="UpiSense"
