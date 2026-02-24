@@ -88,33 +88,33 @@ ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users
 CREATE POLICY "Users can view their own data" ON users
-  FOR SELECT USING (auth.uid()::text = id::text OR TRUE);
+  FOR SELECT USING (auth.uid()::text = id::text);
 
 CREATE POLICY "Users can update their own data" ON users
-  FOR UPDATE USING (auth.uid()::text = id::text OR TRUE);
+  FOR UPDATE USING (auth.uid()::text = id::text);
 
 -- RLS Policies for transactions
 CREATE POLICY "Users can view their own transactions" ON transactions
-  FOR SELECT USING (auth.uid()::text = user_id::text OR TRUE);
+  FOR SELECT USING (auth.uid()::text = user_id::text);
 
 CREATE POLICY "Users can insert their own transactions" ON transactions
-  FOR INSERT WITH CHECK (auth.uid()::text = user_id::text OR TRUE);
+  FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
 
 -- RLS Policies for merchant_memory
 CREATE POLICY "Users can view their own merchant memory" ON merchant_memory
-  FOR SELECT USING (auth.uid()::text = user_id::text OR TRUE);
+  FOR SELECT USING (auth.uid()::text = user_id::text);
 
 CREATE POLICY "Users can manage their own merchant memory" ON merchant_memory
-  FOR ALL USING (auth.uid()::text = user_id::text OR TRUE);
+  FOR ALL USING (auth.uid()::text = user_id::text);
 
--- RLS Policies for categories
+-- RLS Policies for categories (defaults visible to all; user's custom categories only to that user)
 CREATE POLICY "Users can view categories" ON categories
-  FOR SELECT USING (is_default = TRUE OR auth.uid()::text = user_id::text OR TRUE);
+  FOR SELECT USING (is_default = TRUE OR auth.uid()::text = user_id::text);
 
--- RLS Policies for pending_clarifications (server-side only; allow all for anon key)
-CREATE POLICY "Allow all pending_clarifications" ON pending_clarifications
-  FOR ALL USING (true);
+-- RLS Policies for pending_clarifications (user can only see their own)
+CREATE POLICY "Users can manage their own pending_clarifications" ON pending_clarifications
+  FOR ALL USING (auth.uid()::text = user_id::text);
 
 -- RLS Policies for subscriptions
 CREATE POLICY "Users can view their own subscriptions" ON subscriptions
-  FOR SELECT USING (auth.uid()::text = user_id::text OR TRUE);
+  FOR SELECT USING (auth.uid()::text = user_id::text);

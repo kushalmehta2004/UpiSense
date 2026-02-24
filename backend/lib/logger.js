@@ -21,16 +21,17 @@ function ensureLogDir() {
 }
 
 /**
- * Log a parsing failure. Optional supabase: also insert into parse_failures (for Vercel).
+ * Log a parsing failure. Raw message text is never persisted (Privacy: deleted within 60s promise).
+ * Optional supabase: insert error + meta only (no snippet).
  */
 async function logParseFailure(textSnippet, errorMessage, meta = {}, supabase = null) {
-  const snippet = String(textSnippet || '').substring(0, 500);
+  const length = String(textSnippet || '').length;
   const error = String(errorMessage || 'unknown');
-  const entry = { ts: new Date().toISOString(), snippet, error, ...meta };
-  console.error('❌ [parse-failure]', error, snippet ? `snippet: ${snippet.substring(0, 50)}...` : '');
+  const entry = { ts: new Date().toISOString(), error, ...meta };
+  console.error('❌ [parse-failure]', error, length ? `(message length: ${length})` : '');
   if (supabase) {
     try {
-      await supabase.from('parse_failures').insert({ snippet, error, meta });
+      await supabase.from('parse_failures').insert({ error, meta });
     } catch (e) {
       console.error('Could not write parse_failures to DB:', e.message);
     }
@@ -72,7 +73,7 @@ async function getParseFailureSummary(options = {}, supabase = null) {
   const since = sinceDays ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString() : null;
   if (supabase) {
     try {
-      let q = supabase.from('parse_failures').select('id, ts, snippet, error, meta').order('ts', { ascending: false }).limit(limit);
+      let q = supabase.from('parse_failures').select('id, ts, error, meta').order('ts', { ascending: false }).limit(limit);
       if (since) q = q.gte('ts', since);
       const { data, error } = await q;
       if (error) throw error;

@@ -98,6 +98,34 @@ async function isOptedOut(sb, userId) {
   return data?.opted_out === true;
 }
 
+/** Return a log-safe summary of webhook body (no message content / PII). */
+function safeWebhookSummary(body) {
+  if (!body || typeof body !== 'object') return { _: 'empty' };
+  const out = { object: body.object, entry_count: body.entry?.length ?? 0 };
+  const entry = body.entry?.[0];
+  const changes = entry?.changes?.[0];
+  const value = changes?.value;
+  if (value?.statuses) {
+    out.type = 'status';
+    return out;
+  }
+  const msg = value?.messages?.[0];
+  if (!msg) return out;
+  out.type = 'message';
+  out.message_id = msg.id;
+  out.from = msg.from;
+  out.timestamp = msg.timestamp;
+  if (msg.text && typeof msg.text.body === 'string') {
+    out.text_length = msg.text.body.length;
+    out.has_text = true;
+  } else {
+    out.has_text = false;
+  }
+  if (msg.image) out.has_image = true;
+  if (msg.interactive) out.has_interactive = true;
+  return out;
+}
+
 const plugin = async (fastify, options) => {
   // Seed categories on plugin load (idempotent)
   fastify.addHook('onReady', async () => {
@@ -145,9 +173,10 @@ const plugin = async (fastify, options) => {
   fastify.post('/webhook/whatsapp', async (request, reply) => {
     try {
       const body = request.body;
-      
-      console.log('\n📨 Incoming WhatsApp webhook:');
-      console.log(JSON.stringify(body, null, 2));
+
+      // Log structure only; never log message content (Privacy: no PII/OTP in logs)
+      const safeSummary = safeWebhookSummary(body);
+      console.log('\n📨 Incoming WhatsApp webhook:', JSON.stringify(safeSummary));
 
       if (!body.entry || !body.entry[0]) {
         console.log('⚠️  No entry in webhook body');

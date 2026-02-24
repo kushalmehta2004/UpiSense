@@ -62,12 +62,15 @@ export function Privacy() {
             Privacy Policy
           </h1>
           <p className="text-sm mb-12" style={{ color: colors.textSecondary }}>
-            Last updated: 2026. UpiSense is committed to protecting your data under the Digital Personal Data Protection Act 2023.
+            Last updated: 24 February 2026. UpiSense is committed to protecting your data under the Digital Personal Data Protection Act 2023.
           </p>
 
           <Section title="1. Who We Are">
             <p>
               UpiSense is an expense intelligence service. We operate upisense.app and an associated WhatsApp bot.
+              UpiSense is operated by Kushal Mehta, a sole proprietor.
+            </p>
+            <p className="mt-2">
               Contact: <a href="mailto:privacy@upisense.app" className="font-medium hover:opacity-90" style={{ color: MINT }}>privacy@upisense.app</a>
             </p>
           </Section>
@@ -114,7 +117,7 @@ export function Privacy() {
 
           <Section title="6. Data Storage and Security">
             <ul className="list-disc pl-5 space-y-1">
-              <li>Data stored in India (primary) and EEA (backup)</li>
+              <li>Data stored in India on Supabase infrastructure.</li>
               <li>Transit: TLS 1.3</li>
               <li>At rest: AES-256</li>
               <li>Row-level security on database</li>
@@ -133,7 +136,7 @@ export function Privacy() {
                 ['Merchant memory', 'Duration of account', 'Personalisation'],
                 ['Account data', 'Duration of account + 30 days', 'Orderly closure'],
                 ['Anonymised analytics', '24 months rolling', 'Product improvement'],
-                ['Payment records', '7 years', 'GST and tax compliance'],
+                ['Payment records (when paid plans apply)', '7 years', 'GST and tax compliance — applicable when paid plans are introduced'],
               ]}
             />
           </Section>
@@ -145,13 +148,14 @@ export function Privacy() {
                 ['Meta (WhatsApp Business API)', 'Deliver WhatsApp messages', 'WhatsApp number and message content'],
                 ['Google Gemini / Anthropic Claude', 'Parse notification text', 'Anonymised notification text only'],
                 ['Supabase', 'Database hosting', 'All structured user data'],
-                ['Razorpay', 'Payment processing', 'Subscription status only — no card details'],
+                ['Razorpay (when paid plans apply)', 'Payment processing', 'Subscription status only — no card details (applicable when paid plans are introduced)'],
               ]}
             />
             <p className="mt-2">
-              <a href="https://razorpay.com/privacy/" target="_blank" rel="noopener noreferrer" className="font-medium hover:opacity-90" style={{ color: MINT }}>Razorpay&apos;s privacy policy</a>
-              {' · '}
               <a href="https://supabase.com/dpa" target="_blank" rel="noopener noreferrer" className="font-medium hover:opacity-90" style={{ color: MINT }}>Supabase&apos;s data processing agreement</a>
+              {' · '}
+              <a href="https://razorpay.com/privacy/" target="_blank" rel="noopener noreferrer" className="font-medium hover:opacity-90" style={{ color: MINT }}>Razorpay&apos;s privacy policy</a>
+              <span className="text-xs ml-1" style={{ color: colors.textSecondary }}>(applicable when paid plans are introduced)</span>
             </p>
           </Section>
 
@@ -192,11 +196,11 @@ export function Privacy() {
             >
               <p className="font-semibold mb-2" style={{ color: colors.text }}>Data Protection Officer / Grievance Officer</p>
               <p style={{ color: colors.textSecondary }}>
-                Name: <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: '#FEF08A', color: '#000' }}>[FILL IN BEFORE LAUNCH: Your Name]</span>
+                Name: <span style={{ color: colors.text }}>Kushal Mehta</span>
               </p>
               <p style={{ color: colors.textSecondary }}>Email: dpo@upisense.app</p>
               <p style={{ color: colors.textSecondary }}>
-                Address: <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: '#FEF08A', color: '#000' }}>[FILL IN BEFORE LAUNCH: Your Address]</span>
+                Address: <span style={{ color: colors.text }}>Mumbai, India</span>
               </p>
               <p className="mt-3 text-sm" style={{ color: colors.textSecondary }}>
                 Complaints will be acknowledged within 48 hours and resolved within 30 days as required by the Information Technology Act 2000 and the Digital Personal Data Protection Act 2023.
