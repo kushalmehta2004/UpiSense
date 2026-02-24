@@ -1,5 +1,27 @@
 import { create } from 'zustand';
 import { auth } from '../utils/api';
+import { getStoredToken, clearAuthStorage } from '../utils/api';
+
+const TOKEN_KEY = 'upisense_token';
+const USER_KEY = 'upisense_user';
+
+function getStoredUser() {
+  const raw = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+function setAuthStorage(user, token, rememberMe) {
+  clearAuthStorage();
+  const storage = rememberMe ? localStorage : sessionStorage;
+  if (token) storage.setItem(TOKEN_KEY, token);
+  if (user) storage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+function setUserInCurrentStorage(user) {
+  const inLocal = localStorage.getItem(TOKEN_KEY);
+  const storage = inLocal ? localStorage : sessionStorage;
+  if (user) storage.setItem(USER_KEY, JSON.stringify(user));
+}
 
 export const useAuthStore = create((set) => ({
       user: null,
@@ -7,21 +29,19 @@ export const useAuthStore = create((set) => ({
       loading: true,
       initialized: false,
 
-      setUser: (user, token) => {
-        if (token) localStorage.setItem('upisense_token', token);
-        if (user) localStorage.setItem('upisense_user', JSON.stringify(user));
+      setUser: (user, token, rememberMe = true) => {
+        setAuthStorage(user, token, rememberMe);
         set({ user, token });
       },
 
       logout: () => {
-        localStorage.removeItem('upisense_token');
-        localStorage.removeItem('upisense_user');
+        clearAuthStorage();
         set({ user: null, token: null });
       },
 
       init: async () => {
-        const token = localStorage.getItem('upisense_token');
-        const stored = localStorage.getItem('upisense_user');
+        const token = getStoredToken();
+        const stored = getStoredUser();
         if (!token || !stored) {
           set({ loading: false, initialized: true });
           return false;
@@ -29,12 +49,12 @@ export const useAuthStore = create((set) => ({
         try {
           const { data } = await auth.verifyToken();
           if (data.valid) {
-            let user = JSON.parse(stored);
+            let user = stored;
             try {
               const profileRes = await auth.profile();
               if (profileRes.data?.user) {
                 user = profileRes.data.user;
-                localStorage.setItem('upisense_user', JSON.stringify(user));
+                setUserInCurrentStorage(user);
               }
             } catch (_) {
               // keep stored user if profile fetch fails
@@ -43,8 +63,7 @@ export const useAuthStore = create((set) => ({
             return true;
           }
         } catch {
-          localStorage.removeItem('upisense_token');
-          localStorage.removeItem('upisense_user');
+          clearAuthStorage();
         }
         set({ user: null, token: null, loading: false, initialized: true });
         return false;
@@ -54,7 +73,7 @@ export const useAuthStore = create((set) => ({
         set((state) => {
           if (!state.user) return state;
           const user = { ...state.user, ...updates };
-          localStorage.setItem('upisense_user', JSON.stringify(user));
+          setUserInCurrentStorage(user);
           return { user };
         });
       },

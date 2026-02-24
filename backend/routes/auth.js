@@ -69,7 +69,7 @@ const plugin = async (fastify, options) => {
    * Response: { success: true, token: string, user: {...} }
    */
   fastify.post('/auth/verify', async (request, reply) => {
-    const { phone, otp, name: nameFromBody } = request.body || {};
+      const { phone, otp, name: nameFromBody, rememberMe } = request.body || {};
 
     if (!phone || !otp) {
       return reply.code(400).send({ error: 'Missing phone or OTP' });
@@ -138,13 +138,14 @@ const plugin = async (fastify, options) => {
         console.log(`✅ Authenticated existing user: ${user.id}`);
       }
 
-      // Generate JWT token
+      // Generate JWT token (long-lived when rememberMe, else session-length)
       try {
         console.log('🔑 Attempting to sign JWT token...');
-        const token = fastify.jwt.sign({ 
-          userId: user.id, 
-          phone: user.phone 
-        });
+        const longLived = rememberMe !== false;
+        const token = fastify.jwt.sign(
+          { userId: user.id, phone: user.phone },
+          { expiresIn: longLived ? '30d' : '24h' }
+        );
 
         console.log('✅ JWT token generated successfully');
         console.log('Token type:', typeof token);

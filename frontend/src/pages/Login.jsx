@@ -9,6 +9,7 @@ export function Login() {
   const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [logoSrc, setLogoSrc] = useState('/logo.png');
@@ -54,9 +55,9 @@ export function Login() {
     }
     setLoading(true);
     try {
-      const { data } = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim());
+      const { data } = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim(), rememberMe);
       if (data.success && data.token && data.user) {
-        setUser(data.user, data.token);
+        setUser(data.user, data.token, rememberMe);
         navigate(from, { replace: true });
       } else {
         setError('Verification failed');
@@ -114,6 +115,15 @@ export function Login() {
               <p className="text-[11px]" style={{ color: '#6B7280' }}>
                 By signing up, you consent to receive WhatsApp messages from UpiSense. Reply STOP at any time to unsubscribe.
               </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
+                />
+                <span className="text-sm text-slate-600">Remember me on this device</span>
+              </label>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"
@@ -136,6 +146,15 @@ export function Login() {
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-center text-lg tracking-widest text-slate-800"
                 maxLength={6}
               />
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
+                />
+                <span className="text-sm text-slate-600">Remember me on this device</span>
+              </label>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"

@@ -6,13 +6,29 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+const TOKEN_KEY = 'upisense_token';
+const USER_KEY = 'upisense_user';
+
+/** Get token from localStorage (remember me) or sessionStorage (session only). */
+export function getStoredToken() {
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+}
+
+/** Clear auth from both storages (e.g. on logout or 401). */
+export function clearAuthStorage() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('upisense_token');
+  const token = getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,8 +39,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('upisense_token');
-      localStorage.removeItem('upisense_user');
+      clearAuthStorage();
       window.location.href = '/login';
     }
     return Promise.reject(err);
@@ -33,7 +48,7 @@ api.interceptors.response.use(
 
 export const auth = {
   signup: (phone, name) => api.post('/auth/signup', { phone, name }),
-  verify: (phone, otp, name) => api.post('/auth/verify', { phone, otp, name }),
+  verify: (phone, otp, name, rememberMe) => api.post('/auth/verify', { phone, otp, name, rememberMe }),
   profile: () => api.get('/auth/profile'),
   updateProfile: (data) => api.patch('/auth/profile', data),
   logout: () => api.post('/auth/logout'),
