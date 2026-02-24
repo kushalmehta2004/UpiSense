@@ -12,9 +12,17 @@ function getStoredUser() {
 
 function setAuthStorage(user, token, rememberMe) {
   clearAuthStorage();
-  const storage = rememberMe ? localStorage : sessionStorage;
-  if (token) storage.setItem(TOKEN_KEY, token);
-  if (user) storage.setItem(USER_KEY, JSON.stringify(user));
+  const useLocal = rememberMe !== false;
+  const storage = useLocal ? localStorage : sessionStorage;
+  try {
+    if (token) storage.setItem(TOKEN_KEY, token);
+    if (user) storage.setItem(USER_KEY, JSON.stringify(user));
+  } catch (e) {
+    // If one storage fails (e.g. private mode), try the other
+    const fallback = storage === localStorage ? sessionStorage : localStorage;
+    if (token) fallback.setItem(TOKEN_KEY, token);
+    if (user) fallback.setItem(USER_KEY, JSON.stringify(user));
+  }
 }
 
 function setUserInCurrentStorage(user) {
@@ -30,7 +38,9 @@ export const useAuthStore = create((set) => ({
       initialized: false,
 
       setUser: (user, token, rememberMe = true) => {
-        setAuthStorage(user, token, rememberMe);
+        // Treat undefined/omitted as "remember me" so localStorage is used
+        const useLocal = rememberMe !== false;
+        setAuthStorage(user, token, useLocal);
         set({ user, token });
       },
 
@@ -62,8 +72,11 @@ export const useAuthStore = create((set) => ({
             set({ user, token, loading: false, initialized: true });
             return true;
           }
-        } catch {
-          clearAuthStorage();
+        } catch (err) {
+          // Only clear storage on auth failure (401). Don't wipe session on network errors.
+          if (err.response?.status === 401) {
+            clearAuthStorage();
+          }
         }
         set({ user: null, token: null, loading: false, initialized: true });
         return false;

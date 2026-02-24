@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
@@ -16,8 +16,15 @@ export function Login() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser } = useAuthStore();
+  const { user, initialized, setUser } = useAuthStore();
   const from = location.state?.from?.pathname || '/dashboard';
+
+  // If already logged in (e.g. came from landing via "Get started"), go to dashboard
+  useEffect(() => {
+    if (initialized && user) {
+      navigate(from, { replace: true });
+    }
+  }, [initialized, user, navigate, from]);
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
@@ -57,7 +64,7 @@ export function Login() {
     try {
       const { data } = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim(), rememberMe);
       if (data.success && data.token && data.user) {
-        setUser(data.user, data.token, rememberMe);
+        setUser(data.user, data.token, rememberMe === true);
         navigate(from, { replace: true });
       } else {
         setError('Verification failed');
@@ -71,6 +78,13 @@ export function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-900/20 to-slate-900 flex items-center justify-center p-4">
+      {/* Don't flash login form if we're about to redirect */}
+      {initialized && user ? (
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin w-10 h-10 border-2 border-teal-500 border-t-transparent rounded-full" />
+          <p className="text-slate-400">Taking you to dashboard...</p>
+        </div>
+      ) : (
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Link to="/" className="inline-block focus:outline-none focus:ring-2 focus:ring-teal-500/50 rounded-xl">
@@ -174,6 +188,7 @@ export function Login() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
