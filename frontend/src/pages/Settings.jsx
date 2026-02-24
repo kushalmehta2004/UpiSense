@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
 import { User, Shield, BookOpen, MessageCircle, Zap, BarChart3, Terminal, ChevronDown, Scale, ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
@@ -17,7 +17,8 @@ function getInitials(name) {
 const DANGER_SECTION_ID = 'settings-delete-account';
 
 export function Settings() {
-  const { user, updateUser } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, updateUser, logout } = useAuthStore();
   const [name, setName] = useState(user?.name || '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -27,6 +28,9 @@ export function Settings() {
   const [upiOpen, setUpiOpen] = useState(true);
   const [cashOpen, setCashOpen] = useState(false);
   const [iouOpen, setIouOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (user?.name !== undefined) {
@@ -66,6 +70,21 @@ export function Settings() {
       setCopyStatus('Copied!');
       setTimeout(() => setCopyStatus(''), 2000);
     });
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Permanently delete your account and all your data? This cannot be undone.')) return;
+    setDeleteError('');
+    setDeleting(true);
+    try {
+      await auth.deleteAccount();
+      logout();
+      navigate('/', { replace: true });
+    } catch (err) {
+      setDeleteError(err.response?.data?.error || 'Failed to delete account. Try again.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const cardStyle = {
@@ -421,13 +440,18 @@ export function Settings() {
               Permanently delete your account and all data. This cannot be undone.
             </p>
           </div>
-          <button
-            type="button"
-            className="px-4 py-2 rounded-xl border text-sm font-medium shrink-0 transition-colors hover:bg-orange-500/10"
-            style={{ borderColor: colors.orange, color: colors.orange }}
-          >
-            Delete account
-          </button>
+          <div className="shrink-0 flex flex-col items-end gap-1">
+            {deleteError && <p className="text-xs" style={{ color: colors.orange }}>{deleteError}</p>}
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleDeleteAccount}
+              className="px-4 py-2 rounded-xl border text-sm font-medium transition-colors hover:bg-orange-500/10 disabled:opacity-50"
+              style={{ borderColor: colors.orange, color: colors.orange }}
+            >
+              {deleting ? 'Deleting…' : 'Delete account'}
+            </button>
+          </div>
         </div>
       </motion.section>
     </motion.div>

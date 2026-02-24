@@ -30,8 +30,11 @@ export function Terms() {
           >
             Terms of Service
           </h1>
+          <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+            Version 1.0 · Last updated: 24 February 2026. By using UpiSense you agree to these terms.
+          </p>
           <p className="text-sm mb-12" style={{ color: colors.textSecondary }}>
-            Last updated: 2026. By using UpiSense you agree to these terms.
+            These Terms constitute an agreement between you and Kushal Mehta, operating as UpiSense, located at Mumbai, India.
           </p>
 
           <Section title="1. The Service">
@@ -83,6 +86,9 @@ export function Terms() {
           </Section>
 
           <Section title="6. Subscription and Billing (for when paid plans are live)">
+            <p className="mb-3 font-medium" style={{ color: colors.text }}>
+              This section applies when paid plans are introduced. Currently UpiSense is free.
+            </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>All prices in INR inclusive of 18% GST</li>
               <li>Subscriptions auto-renew monthly unless cancelled before renewal</li>
@@ -93,6 +99,9 @@ export function Terms() {
           </Section>
 
           <Section title="7. Refund Policy">
+            <p className="mb-3 font-medium" style={{ color: colors.text }}>
+              This section applies when paid plans are introduced. Currently UpiSense is free.
+            </p>
             <p>
               UpiSense subscriptions are digital services. No refunds are issued for partial subscription periods. If you cancel, your Pro access continues until the end of the current billing period. Upon termination, your data is deleted within 30 days. Termination does not entitle you to a refund of prepaid fees.
             </p>
@@ -112,7 +121,7 @@ export function Terms() {
 
           <Section title="10. Limitation of Liability">
             <p>
-              To the maximum extent permitted by Indian law, UpiSense is not liable for indirect or consequential damages, financial loss, or decisions made based on UpiSense data. Total liability capped at subscription fees paid in the 3 months prior to any claim.
+              To the maximum extent permitted by Indian law, UpiSense is not liable for indirect or consequential damages, financial loss, or decisions made based on UpiSense data. To the maximum extent permitted by Indian law, and during any free tier period, total liability is capped at ₹1,000. (When paid plans are introduced, liability may be capped at subscription fees paid in the 3 months prior to any claim.)
             </p>
           </Section>
 

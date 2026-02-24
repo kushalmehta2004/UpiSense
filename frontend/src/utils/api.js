@@ -38,6 +38,7 @@ export const auth = {
   updateProfile: (data) => api.patch('/auth/profile', data),
   logout: () => api.post('/auth/logout'),
   verifyToken: () => api.get('/auth/verify-token'),
+  deleteAccount: () => api.delete('/auth/account'),
 };
 
 export const transactions = {

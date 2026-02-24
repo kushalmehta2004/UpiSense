@@ -10,14 +10,19 @@ export function DashboardLayout() {
           <Outlet />
         </div>
       </main>
-      <footer className="py-4 text-center text-[11px] border-t shrink-0" style={{ color: '#374151', borderColor: 'rgba(255,255,255,0.06)' }}>
-        <Link to="/privacy" className="hover:opacity-80">Privacy Policy</Link>
-        <span className="mx-1">·</span>
-        <Link to="/terms" className="hover:opacity-80">Terms of Service</Link>
-        <span className="mx-1">·</span>
-        <span>Not a financial advisor</span>
-        <span className="mx-1">·</span>
-        <span>Data stored in India</span>
+      <footer className="py-4 border-t shrink-0" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <p className="text-center text-[11px] mb-2" style={{ color: '#374151' }}>
+          AI categorization may not always be accurate. Verify against your bank statement.
+        </p>
+        <p className="text-center text-[11px]" style={{ color: '#374151' }}>
+          <Link to="/privacy" className="hover:opacity-80">Privacy Policy</Link>
+          <span className="mx-1">·</span>
+          <Link to="/terms" className="hover:opacity-80">Terms of Service</Link>
+          <span className="mx-1">·</span>
+          <span>Not a financial advisor</span>
+          <span className="mx-1">·</span>
+          <span>Data stored in India</span>
+        </p>
       </footer>
     </div>
   );

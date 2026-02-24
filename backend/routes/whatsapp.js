@@ -92,6 +92,12 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+/** Check if user has opted out of non-essential WhatsApp messages (STOP). */
+async function isOptedOut(sb, userId) {
+  const { data } = await sb.from('users').select('opted_out').eq('id', userId).single();
+  return data?.opted_out === true;
+}
+
 const plugin = async (fastify, options) => {
   // Seed categories on plugin load (idempotent)
   fastify.addHook('onReady', async () => {
@@ -228,7 +234,7 @@ const plugin = async (fastify, options) => {
                 );
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${receipt.amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} to *${receipt.merchant}*.\n\n${buildReceiptCategoryMessage()}`);
                 const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, category || 'Other', receipt.amount);
-                if (alertMsg) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
+                if (alertMsg && !(await isOptedOut(supabase, userId))) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
                 if (justCreatedUser) {
                   try { await sendWhatsAppText(senderId, getHelpMessage(true)); } catch (e) { /* ignore */ }
                 }
@@ -257,8 +263,46 @@ const plugin = async (fastify, options) => {
       console.log(`   Text: ${text}`);
       console.log(`   Timestamp: ${new Date(timestamp * 1000).toISOString()}`);
 
-      // Resolve user from senderId
       const variants = getPhoneVariants(senderId);
+
+      // STOP/START: opt-out of non-essential WhatsApp messages (ToS compliance)
+      const trimmedUpper = text.trim().toUpperCase();
+      if (trimmedUpper === 'STOP') {
+        for (const v of variants) {
+          const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+          if (u?.[0]) {
+            await supabase.from('users').update({ opted_out: true }).eq('id', u[0].id);
+            break;
+          }
+          const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+          if (u2?.[0]) {
+            await supabase.from('users').update({ opted_out: true }).eq('id', u2[0].id);
+            break;
+          }
+        }
+        await sendWhatsAppText(senderId, 'You have been unsubscribed. Reply START to resubscribe.');
+        return reply.send({ success: true });
+      }
+      if (trimmedUpper === 'START') {
+        for (const v of variants) {
+          const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+          if (u?.[0]) {
+            await supabase.from('users').update({ opted_out: false }).eq('id', u[0].id);
+            await sendWhatsAppText(senderId, 'You have been resubscribed.');
+            return reply.send({ success: true });
+          }
+          const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+          if (u2?.[0]) {
+            await supabase.from('users').update({ opted_out: false }).eq('id', u2[0].id);
+            await sendWhatsAppText(senderId, 'You have been resubscribed.');
+            return reply.send({ success: true });
+          }
+        }
+        await sendWhatsAppText(senderId, 'You have been resubscribed.');
+        return reply.send({ success: true });
+      }
+
+      // Resolve user from senderId
       let msgUser = null;
       for (const v of variants) {
         const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
@@ -304,9 +348,9 @@ const plugin = async (fastify, options) => {
       // ----- Tier 1: WhatsApp commands (need user; create if command from new user) -----
       let cmdUser = null;
       for (const v of variants) {
-        const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+        const { data: u } = await supabase.from('users').select('id, opted_out').eq('whatsapp_number', v).limit(1);
         if (u?.[0]) { cmdUser = u[0]; break; }
-        const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+        const { data: u2 } = await supabase.from('users').select('id, opted_out').eq('phone', v).limit(1);
         if (u2?.[0]) { cmdUser = u2[0]; break; }
       }
       const isBudgetCmd = /^(?:set\s+)?budget\s+.+\s+[\d,]+\.?\d*$/i.test(text.trim());
@@ -489,7 +533,7 @@ const plugin = async (fastify, options) => {
           try {
             const { byCategory, total, start, end } = await getSpendingByCategory(supabase, cmdUser.id, reportOpt);
             const msg = formatReportMessage({ byCategory, total, start, end }, reportOpt.type);
-            await sendWhatsAppText(senderId, (msg || 'No spending in this period.') + STOP_FOOTER);
+            if (cmdUser.opted_out !== true) await sendWhatsAppText(senderId, (msg || 'No spending in this period.') + STOP_FOOTER);
           } catch (err) {
             console.error('Report error:', err.message);
             await sendWhatsAppText(senderId, `❌ Could not generate report: ${err.message}`);
@@ -652,7 +696,7 @@ const plugin = async (fastify, options) => {
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})`);
                 try {
                   const alertMsg = await getBudgetAlertAfterTransaction(supabase, cmdUser.id, intent.category, intent.amount);
-                  if (alertMsg) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
+                  if (alertMsg && cmdUser.opted_out !== true) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
                 } catch (e) {
                   console.error('Budget alert check failed:', e.message);
                 }
@@ -957,10 +1001,10 @@ const plugin = async (fastify, options) => {
           } catch (err) {
             console.error('❌ Acknowledgement send failed:', err.message);
           }
-          // Tier 1: Budget alert when approaching or exceeding limit
+          // Tier 1: Budget alert when approaching or exceeding limit (skip if user opted out)
           try {
             const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, assignedCategory, parsed.amount);
-            if (alertMsg) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
+            if (alertMsg && !(await isOptedOut(supabase, userId))) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
           } catch (err) {
             console.error('Budget alert check failed:', err.message);
           }

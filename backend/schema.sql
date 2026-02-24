@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   whatsapp_number VARCHAR(15),
   name VARCHAR(255),
   plan VARCHAR(50) DEFAULT 'free',
+  opted_out BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );

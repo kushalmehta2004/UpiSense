@@ -272,6 +272,33 @@ const plugin = async (fastify, options) => {
       return reply.code(401).send({ valid: false, error: 'Invalid token' });
     }
   });
+
+  /**
+   * DELETE /auth/account
+   * Permanently delete the current user and all related data. Requires JWT.
+   */
+  fastify.delete('/auth/account', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const { userId } = request.user;
+
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+
+      if (error) {
+        console.error('❌ Delete account error:', error.message);
+        return reply.code(500).send({ error: 'Failed to delete account' });
+      }
+
+      console.log(`✅ Account deleted: ${userId}`);
+      return reply.send({ success: true, message: 'Account and all data deleted' });
+    } catch (error) {
+      if (error.message?.includes('Authorization')) {
+        return reply.code(401).send({ error: 'Unauthorized - missing or invalid token' });
+      }
+      console.error('❌ Delete account error:', error.message);
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
+  });
 };
 
 module.exports = plugin;
