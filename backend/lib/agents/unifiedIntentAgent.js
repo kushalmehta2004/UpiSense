@@ -6,6 +6,7 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getCategoryNames } = require('../categories/defaults.js');
+const { getTodayIST } = require('../dateUtils.js');
 
 let genAI = null;
 
@@ -58,6 +59,7 @@ Output schema (use exactly these field names):
 - For type "i_owe": person_name (who the user owes). E.g. "I owe Raj 500" → person_name "Raj", amount 500. "I owe someone 500" → person_name "Someone".
 - For type "paid_back": person_name (who paid the user back – someone who owed them). E.g. "Kushal paid back 1230" → person_name "Kushal", amount 1230. "Ravi returned my 500" → person_name "Ravi", amount 500. "Priya paid me back" with amount → person_name "Priya", amount.
 - For type "i_paid_back": person_name (who the user paid back – someone they owed). E.g. "I paid back Samkit 300" → person_name "Samkit", amount 300. "I returned 500 to Raj" → person_name "Raj", amount 500.
+- expense_date (optional): use ONLY for type "transaction" or "group_expense". When the user mentions a date for the expense, set this to YYYY-MM-DD. Parse: "on 23rd February 2026", "on 23 Feb 2026", "23/02/2026", "yesterday", "day before yesterday", "last Monday", "on 20th" (current month). Use today's date (in IST) for "today" or when no date is mentioned. Today's date (IST) is: {{TODAY_IST}}. Do NOT include expense_date if the message has no date; we will use today. When you include expense_date, use exactly YYYY-MM-DD.
 
 Examples:
 - "100 to john" → {"type":"transaction","amount":100,"merchant_name":"john","category":"Other","is_p2p":true}
@@ -75,6 +77,9 @@ Examples:
 - "I returned 500 to Raj" → {"type":"i_paid_back","person_name":"Raj","amount":500}
 - "Paid 500 to restaurant" → {"type":"transaction","amount":500,"category":"Food & Dining","merchant_name":"restaurant"}
 - "i paid 500 at a restaurant in group 306 for dinner where my friend owes me 200" → {"type":"group_expense","amount":500,"category":"Food & Dining","group_name":"306","description":"dinner","shares":[{"person":"friend","amount":200},{"person":"me","amount":300}]}
+- "Paid for dinner on 23rd February 2026 500 at restaurant" → {"type":"transaction","amount":500,"merchant_name":"restaurant","category":"Food & Dining","expense_date":"2026-02-23"}
+- "Paid for dinner yesterday 300 to cafe" → {"type":"transaction","amount":300,"merchant_name":"cafe","category":"Food & Dining","expense_date":"<yesterday in YYYY-MM-DD>"}
+- "Paid for dinner day before yesterday 400 at cafe" → {"type":"transaction","amount":400,"merchant_name":"cafe","category":"Food & Dining","expense_date":"<day before yesterday YYYY-MM-DD>"}
 
 If the message is clearly NOT a payment, group expense, or IOU (e.g. "hello", "500" alone), return exactly: {"type":"none"}
 Do NOT return type "transaction" with merchant_name "Unknown" or empty – return "none" instead so we can ask who they paid.
@@ -83,7 +88,9 @@ Prefer "paid_back" when someone who owed the user returns money (e.g. "X paid ba
 
 Return ONLY valid JSON. No markdown, no code block, no explanation.`;
 
-  const fullPrompt = `${prompt}\n\nUser message: "${(text || '').trim().replace(/"/g, '\\"')}"`;
+  const todayIST = getTodayIST();
+  const promptWithDate = prompt.replace(/\{\{TODAY_IST\}\}/g, todayIST);
+  const fullPrompt = `${promptWithDate}\n\nUser message: "${(text || '').trim().replace(/"/g, '\\"')}"`;
 
   try {
     const result = await model.generateContent(fullPrompt);
@@ -108,7 +115,12 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
       if (!merchant || merchant.toLowerCase() === 'unknown') return null;
       const category = parsed.category && CATEGORIES.includes(parsed.category) ? parsed.category : 'Other';
       const is_p2p = parsed.is_p2p === true || parsed.is_p2p === 'true';
-      return { type: 'transaction', amount, category, merchant_name: merchant, is_p2p };
+      let expense_date = null;
+      if (parsed.expense_date && typeof parsed.expense_date === 'string') {
+        const d = parsed.expense_date.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) expense_date = d;
+      }
+      return { type: 'transaction', amount, category, merchant_name: merchant, is_p2p, expense_date };
     }
 
     if (parsed.type === 'group_expense') {
@@ -130,13 +142,19 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
       } else {
         shares = null;
       }
+      let expense_date = null;
+      if (parsed.expense_date && typeof parsed.expense_date === 'string') {
+        const d = parsed.expense_date.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) expense_date = d;
+      }
       return {
         type: 'group_expense',
         amount,
         category,
         group_name: groupName,
         description,
-        shares: shares && shares.length > 0 ? shares : null
+        shares: shares && shares.length > 0 ? shares : null,
+        expense_date
       };
     }
 

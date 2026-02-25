@@ -86,6 +86,7 @@ const {
   handleSplitReply
 } = require('../lib/splitTransaction/splitTransactionService.js');
 const { amountForDb } = require('../lib/amountUtils.js');
+const { dateStringToNoonISTUTC, getTodayIST } = require('../lib/dateUtils.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -252,7 +253,7 @@ const plugin = async (fastify, options) => {
                 userId,
                 sb
               );
-              const txnTimestamp = receipt.date ? `${receipt.date}T12:00:00.000Z` : new Date(timestamp * 1000).toISOString();
+              const txnTimestamp = receipt.date ? (dateStringToNoonISTUTC(receipt.date) || new Date(timestamp * 1000).toISOString()) : new Date(timestamp * 1000).toISOString();
               const { data: txn } = await sb.from('transactions').insert([{
                 user_id: userId,
                 amount: amountForDb(receipt.amount),
@@ -687,7 +688,7 @@ const plugin = async (fastify, options) => {
                   await sendWhatsAppText(senderId, `❌ Group "${intent.group_name}" not found. Reply _groups_ to see your groups.`);
                   return reply.send({ success: true });
                 }
-                const expenseDate = new Date().toISOString().slice(0, 10);
+                const expenseDate = intent.expense_date || getTodayIST();
                 if (intent.shares && intent.shares.length > 0) {
                   const resolved = await resolveSharesToUserIds(sb, group.id, cmdUser.id, intent.shares);
                   if (resolved.length > 0) {
@@ -706,6 +707,10 @@ const plugin = async (fastify, options) => {
               if (intent.type === 'transaction') {
                 const isP2P = intent.is_p2p === true;
                 const category = isP2P ? 'pending_clarification' : intent.category;
+                const todayIST = getTodayIST();
+                const txnTimestamp = (intent.expense_date && intent.expense_date !== todayIST)
+                  ? (dateStringToNoonISTUTC(intent.expense_date) || new Date(timestamp * 1000).toISOString())
+                  : new Date(timestamp * 1000).toISOString();
                 const { data: txn, error: txnErr } = await sb
                   .from('transactions')
                   .insert([{
@@ -717,7 +722,7 @@ const plugin = async (fastify, options) => {
                     source_app: 'unified_agent',
                     parse_method: 'unified_agent',
                     confidence: 0.9,
-                    timestamp: new Date().toISOString()
+                    timestamp: txnTimestamp
                   }])
                   .select('id')
                   .single();
@@ -740,7 +745,8 @@ const plugin = async (fastify, options) => {
                   }
                   return reply.send({ success: true });
                 }
-                await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})`);
+                const dateSuffix = intent.expense_date ? ` on ${intent.expense_date}` : '';
+                await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})${dateSuffix}`);
                 try {
                   const alertMsg = await getBudgetAlertAfterTransaction(sb, cmdUser.id, intent.category, intent.amount);
                   if (alertMsg && cmdUser.opted_out !== true) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);

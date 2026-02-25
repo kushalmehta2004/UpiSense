@@ -80,7 +80,7 @@ function TransactionItem({ txn, cardStyle = false, onEdit, onDelete, isDeleting 
           </span>
           {date && (
             <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-              {format(new Date(date), 'MMM d · h:mm a')}
+              {new Date(date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}
             </p>
           )}
         </div>
