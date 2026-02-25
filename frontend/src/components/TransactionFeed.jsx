@@ -40,6 +40,31 @@ const CATEGORY_EMOJI = {
   Other: '📌',
 };
 
+const IST = 'Asia/Kolkata';
+
+/** Parse API date (may be UTC without 'Z') and format in IST. */
+function formatInIST(dateValue) {
+  if (dateValue == null) return '';
+  const s = typeof dateValue === 'string' ? dateValue.trim().replace(' ', 'T') : String(dateValue);
+  let d;
+  if (typeof dateValue === 'string') {
+    const hasZone = /Z|[+-]\d{2}:?\d{2}$/.test(s);
+    const toParse = hasZone ? s : (s.includes('T') ? s + 'Z' : s + 'T00:00:00.000Z');
+    d = new Date(toParse);
+  } else {
+    d = new Date(dateValue);
+  }
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-IN', {
+    timeZone: IST,
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 function TransactionItem({ txn, cardStyle = false, onEdit, onDelete, isDeleting }) {
   const date = txn.timestamp || txn.created_at;
   const catColor = getCategoryColor(txn.category);
@@ -80,7 +105,7 @@ function TransactionItem({ txn, cardStyle = false, onEdit, onDelete, isDeleting 
           </span>
           {date && (
             <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-              {new Date(date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}
+              {formatInIST(date)}
             </p>
           )}
         </div>
