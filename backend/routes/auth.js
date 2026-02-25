@@ -6,11 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Service-role client for operations that must bypass RLS (e.g. delete account).
-// Set SUPABASE_SERVICE_ROLE_KEY in production so account deletion works.
+// Service-role client for operations that must bypass RLS (e.g. profile, delete account).
+// Set SUPABASE_SERVICE_ROLE_KEY in production so auth routes work with RLS enabled on users.
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : null;
+const sb = supabaseAdmin || supabase;
 
 const plugin = async (fastify, options) => {
   /**
@@ -33,9 +34,9 @@ const plugin = async (fastify, options) => {
       const variants = getPhoneVariants(phone);
       let existing = null;
       for (const v of variants) {
-        const { data: byPhone } = await supabase.from('users').select('id, phone, name').eq('phone', v).limit(1);
+        const { data: byPhone } = await sb.from('users').select('id, phone, name').eq('phone', v).limit(1);
         if (byPhone?.[0]) { existing = byPhone[0]; break; }
-        const { data: byWa } = await supabase.from('users').select('id, phone, name').eq('whatsapp_number', v).limit(1);
+        const { data: byWa } = await sb.from('users').select('id, phone, name').eq('whatsapp_number', v).limit(1);
         if (byWa?.[0]) { existing = byWa[0]; break; }
       }
 
@@ -94,9 +95,9 @@ const plugin = async (fastify, options) => {
       const variants = getPhoneVariants(phone);
       let user = null;
       for (const v of variants) {
-        const { data: byPhone } = await supabase.from('users').select('*').eq('phone', v).limit(1);
+        const { data: byPhone } = await sb.from('users').select('*').eq('phone', v).limit(1);
         if (byPhone?.[0]) { user = byPhone[0]; break; }
-        const { data: byWa } = await supabase.from('users').select('*').eq('whatsapp_number', v).limit(1);
+        const { data: byWa } = await sb.from('users').select('*').eq('whatsapp_number', v).limit(1);
         if (byWa?.[0]) { user = byWa[0]; break; }
       }
 
@@ -106,7 +107,6 @@ const plugin = async (fastify, options) => {
         const digits = phone.replace(/\D/g, '');
         const whatsappNumber = normalizeForWhatsApp(phone);
         const phoneStored = digits.length === 10 ? digits : whatsappNumber; // store 10-digit as phone
-        const sb = supabaseAdmin || supabase;
         const { data: newUser, error } = await sb
           .from('users')
           .insert([{
@@ -122,9 +122,9 @@ const plugin = async (fastify, options) => {
           // Race: user may have been created (e.g. by webhook); try lookup again
           if (error.code === '23505' || error.message?.includes('duplicate key')) {
             for (const v of variants) {
-              const { data: found } = await supabase.from('users').select('*').eq('phone', v).limit(1);
+              const { data: found } = await sb.from('users').select('*').eq('phone', v).limit(1);
               if (found?.[0]) { user = found[0]; break; }
-              const { data: found2 } = await supabase.from('users').select('*').eq('whatsapp_number', v).limit(1);
+              const { data: found2 } = await sb.from('users').select('*').eq('whatsapp_number', v).limit(1);
               if (found2?.[0]) { user = found2[0]; break; }
             }
           }
@@ -186,7 +186,7 @@ const plugin = async (fastify, options) => {
       await request.jwtVerify();
       const { userId } = request.user;
 
-      const { data: user, error } = await supabase
+      const { data: user, error } = await sb
         .from('users')
         .select('id, phone, name, plan, whatsapp_number, created_at')
         .eq('id', userId)
@@ -229,11 +229,11 @@ const plugin = async (fastify, options) => {
       }
 
       if (Object.keys(updates).length === 0) {
-        const { data: user } = await supabase.from('users').select('id, phone, name, plan, whatsapp_number, created_at').eq('id', userId).single();
+        const { data: user } = await sb.from('users').select('id, phone, name, plan, whatsapp_number, created_at').eq('id', userId).single();
         return reply.send({ success: true, user: user || {} });
       }
 
-      const { data: user, error } = await supabase
+      const { data: user, error } = await sb
         .from('users')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', userId)
@@ -299,7 +299,7 @@ const plugin = async (fastify, options) => {
           return reply.code(500).send({ error: 'Failed to delete account' });
         }
       } else {
-        const { error } = await supabase.from('users').delete().eq('id', userId);
+        const { error } = await sb.from('users').delete().eq('id', userId);
         if (error) {
           console.error('❌ Delete account error:', error.message);
           return reply.code(500).send({

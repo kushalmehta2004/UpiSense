@@ -1,6 +1,7 @@
 /**
  * Dashboard API – Groups, budgets, family, report
  * All endpoints require JWT and are user-scoped.
+ * Uses service-role client when available so RLS does not block reads (backend enforces user_id).
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -22,6 +23,10 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+const sb = supabaseAdmin || supabase;
 
 const plugin = async (fastify) => {
   /**
@@ -33,7 +38,7 @@ const plugin = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const groups = await listGroupsForUser(supabase, userId);
+      const groups = await listGroupsForUser(sb, userId);
       return reply.send({ success: true, groups });
     } catch (error) {
       console.error('❌ Groups list error:', error.message);
@@ -54,7 +59,7 @@ const plugin = async (fastify) => {
       if (!name || !String(name).trim()) {
         return reply.code(400).send({ error: 'Group name is required' });
       }
-      const group = await createGroupFromDashboard(supabase, userId, String(name).trim());
+      const group = await createGroupFromDashboard(sb, userId, String(name).trim());
       return reply.send({ success: true, group });
     } catch (error) {
       console.error('❌ Create group error:', error.message);
@@ -71,12 +76,12 @@ const plugin = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const groups = await listGroupsForUser(supabase, userId);
+      const groups = await listGroupsForUser(sb, userId);
       let totalYouOwe = 0;
       let totalOwedToYou = 0;
       const perGroup = [];
       for (const g of groups) {
-        const { youOwe, owedToYou } = await getBalanceForUser(supabase, g.id, userId);
+        const { youOwe, owedToYou } = await getBalanceForUser(sb, g.id, userId);
         const youOweSum = youOwe.reduce((s, o) => s + o.amount, 0);
         const owedSum = owedToYou.reduce((s, o) => s + o.amount, 0);
         totalYouOwe += youOweSum;
@@ -107,14 +112,14 @@ const plugin = async (fastify) => {
       const { userId } = request.user;
       const { id: groupId } = request.params;
 
-      const { data: groupRow, error: gErr } = await supabase
+      const { data: groupRow, error: gErr } = await sb
         .from('expense_groups')
         .select('id, name, currency, created_by_user_id')
         .eq('id', groupId)
         .single();
       if (gErr || !groupRow) return reply.code(404).send({ error: 'Group not found' });
 
-      const { data: membership } = await supabase
+      const { data: membership } = await sb
         .from('group_members')
         .select('user_id')
         .eq('group_id', groupId)
@@ -124,20 +129,20 @@ const plugin = async (fastify) => {
 
       const isCreator = groupRow.created_by_user_id === userId;
       const group = { id: groupRow.id, name: groupRow.name, currency: groupRow.currency, isCreator };
-      const members = await getGroupMembers(supabase, groupId);
+      const members = await getGroupMembers(sb, groupId);
 
-      const { youOwe, owedToYou } = await getBalanceForUser(supabase, groupId, userId);
+      const { youOwe, owedToYou } = await getBalanceForUser(sb, groupId, userId);
       const userIds = [...youOwe.map(o => o.userId), ...owedToYou.map(o => o.userId)];
       let userNames = {};
       if (userIds.length > 0) {
-        const { data: users } = await supabase.from('users').select('id, name, phone').in('id', userIds);
+        const { data: users } = await sb.from('users').select('id, name, phone').in('id', userIds);
         (users || []).forEach(u => { userNames[u.id] = u.name || u.phone || u.id.slice(0, 8); });
       }
 
       const youOweWithNames = youOwe.map(o => ({ ...o, name: userNames[o.userId] || 'Unknown' }));
       const owedToYouWithNames = owedToYou.map(o => ({ ...o, name: userNames[o.userId] || 'Unknown' }));
 
-      const { data: expenses } = await supabase
+      const { data: expenses } = await sb
         .from('expenses')
         .select('id, amount, description, expense_date, paid_by_user_id, created_at')
         .eq('group_id', groupId)
@@ -146,7 +151,7 @@ const plugin = async (fastify) => {
       const payerIds = [...new Set((expenses || []).map(e => e.paid_by_user_id).filter(Boolean))];
       let payerNames = {};
       if (payerIds.length > 0) {
-        const { data: payers } = await supabase.from('users').select('id, name, phone').in('id', payerIds);
+        const { data: payers } = await sb.from('users').select('id, name, phone').in('id', payerIds);
         (payers || []).forEach(u => { payerNames[u.id] = u.name || u.phone || 'Unknown'; });
       }
       const expensesWithPayer = (expenses || []).map(e => ({
@@ -182,7 +187,7 @@ const plugin = async (fastify) => {
       if (!name || !String(name).trim()) {
         return reply.code(400).send({ error: 'Group name is required' });
       }
-      await updateGroupName(supabase, groupId, userId, String(name).trim());
+      await updateGroupName(sb, groupId, userId, String(name).trim());
       return reply.send({ success: true });
     } catch (error) {
       if (error.message?.includes('Only the group creator')) return reply.code(403).send({ error: error.message });
@@ -200,7 +205,7 @@ const plugin = async (fastify) => {
     try {
       const { userId } = request.user;
       const { id: groupId } = request.params;
-      await deleteGroup(supabase, groupId, userId);
+      await deleteGroup(sb, groupId, userId);
       return reply.send({ success: true });
     } catch (error) {
       if (error.message?.includes('Only the group creator')) return reply.code(403).send({ error: error.message });
@@ -223,15 +228,15 @@ const plugin = async (fastify) => {
       if (digits.length < 10) {
         return reply.code(400).send({ error: 'Valid phone number (10+ digits) is required' });
       }
-      const { data: membership } = await supabase
+      const { data: membership } = await sb
         .from('group_members')
         .select('user_id')
         .eq('group_id', groupId)
         .eq('user_id', userId)
         .maybeSingle();
       if (!membership) return reply.code(403).send({ error: 'Not a member of this group' });
-      await addMemberToGroup(supabase, groupId, digits, userId);
-      const members = await getGroupMembers(supabase, groupId);
+      await addMemberToGroup(sb, groupId, digits, userId);
+      const members = await getGroupMembers(sb, groupId);
       return reply.send({ success: true, members });
     } catch (error) {
       return reply.code(500).send({ error: error.message || 'Server error' });
@@ -248,8 +253,8 @@ const plugin = async (fastify) => {
     try {
       const { userId } = request.user;
       const { id: groupId, memberId } = request.params;
-      await removeMemberFromGroup(supabase, groupId, memberId, userId);
-      const members = await getGroupMembers(supabase, groupId);
+      await removeMemberFromGroup(sb, groupId, memberId, userId);
+      const members = await getGroupMembers(sb, groupId);
       return reply.send({ success: true, members });
     } catch (error) {
       if (error.message?.includes('Only the creator') || error.message?.includes('Member not found')) {
@@ -268,10 +273,10 @@ const plugin = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const budgets = await listBudgets(supabase, userId);
+      const budgets = await listBudgets(sb, userId);
       const withSpend = await Promise.all(
         budgets.map(async (b) => {
-          const spend = await getSpendThisMonth(supabase, userId, b.category);
+          const spend = await getSpendThisMonth(sb, userId, b.category);
           return {
             ...b,
             spend,
@@ -296,7 +301,7 @@ const plugin = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const data = await getFamilySpendingThisMonth(supabase, userId);
+      const data = await getFamilySpendingThisMonth(sb, userId);
       const summary = Object.entries(data.byCategory)
         .map(([category, amount]) => ({ category, amount }))
         .sort((a, b) => b.amount - a.amount);
@@ -322,7 +327,7 @@ const plugin = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const entries = await getOwedToMe(supabase, userId);
+      const entries = await getOwedToMe(sb, userId);
       return reply.send({ success: true, entries });
     } catch (error) {
       console.error('❌ Debts owed-to-me error:', error.message);
@@ -339,7 +344,7 @@ const plugin = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { userId } = request.user;
-      const entries = await getIOwe(supabase, userId);
+      const entries = await getIOwe(sb, userId);
       return reply.send({ success: true, entries });
     } catch (error) {
       console.error('❌ Debts i-owe error:', error.message);
@@ -363,7 +368,7 @@ const plugin = async (fastify) => {
       const fromDate = from || startOfMonth.toISOString().slice(0, 10);
       const toDate = to || endOfMonth.toISOString().slice(0, 10);
 
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('transactions')
         .select('category, amount')
         .eq('user_id', userId)

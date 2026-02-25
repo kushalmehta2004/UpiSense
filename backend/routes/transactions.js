@@ -1,6 +1,7 @@
 /**
  * Dashboard API - Transactions, summary, daily trend
  * All endpoints require JWT and are user-scoped.
+ * Uses service-role client when available so RLS does not block reads (backend enforces user_id).
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -9,6 +10,10 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+const sb = supabaseAdmin || supabase;
 
 const plugin = async (fastify) => {
   /**
@@ -23,7 +28,7 @@ const plugin = async (fastify) => {
       const { userId } = request.user;
       const { page = 1, limit = 20, category, from, to, search } = request.query;
 
-      let query = supabase
+      let query = sb
         .from('transactions')
         .select('id, amount, merchant_name, category, notes, source_app, timestamp, created_at', { count: 'exact' })
         .eq('user_id', userId)
@@ -54,7 +59,7 @@ const plugin = async (fastify) => {
       // Supabase may return count as undefined in some versions; fallback to a count query
       let totalCount = count;
       if (totalCount == null || totalCount === undefined) {
-        let countQuery = supabase
+        let countQuery = sb
           .from('transactions')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId);
@@ -115,7 +120,7 @@ const plugin = async (fastify) => {
 
       allowed.updated_at = new Date().toISOString();
 
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('transactions')
         .update(allowed)
         .eq('id', id)
@@ -146,7 +151,7 @@ const plugin = async (fastify) => {
       const { userId } = request.user;
       const { id } = request.params;
 
-      const { error } = await supabase
+      const { error } = await sb
         .from('transactions')
         .delete()
         .eq('id', id)
@@ -180,7 +185,7 @@ const plugin = async (fastify) => {
       const fromDate = from || startOfMonth.toISOString().slice(0, 10);
       const toDate = to || endOfMonth.toISOString().slice(0, 10);
 
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('transactions')
         .select('category, amount')
         .eq('user_id', userId)
@@ -251,7 +256,7 @@ const plugin = async (fastify) => {
       const startStr = start.toISOString().slice(0, 10);
       const endStr = end.toISOString().slice(0, 10);
 
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('transactions')
         .select('timestamp, amount')
         .eq('user_id', userId)
