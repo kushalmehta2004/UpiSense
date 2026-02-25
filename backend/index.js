@@ -34,7 +34,15 @@ async function handler(req, res) {
   }
 
   const app = await getApp();
-  const url = req.url || '/';
+  // Use path only: Vercel may send full URL or path; Fastify expects path + query
+  let url = req.url || '/';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const u = new URL(url);
+      url = u.pathname + (u.search || '');
+    } catch (_) {}
+  }
+  if (!url.startsWith('/')) url = '/' + url;
   const method = req.method || 'GET';
   let payload;
   if (method !== 'GET' && method !== 'HEAD') {
