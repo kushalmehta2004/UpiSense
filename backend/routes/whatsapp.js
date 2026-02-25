@@ -91,6 +91,14 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
+// Service-role client: bypasses RLS so webhook can create/lookup users and write parse_failures (no user JWT in webhook).
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+if (!supabaseAdmin) {
+  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set. WhatsApp user creation will fail with RLS. Set it in Vercel → Project → Settings → Environment Variables and redeploy.');
+}
+const sb = supabaseAdmin || supabase;
 
 /** Check if user has opted out of non-essential WhatsApp messages (STOP). */
 async function isOptedOut(sb, userId) {
@@ -130,7 +138,7 @@ const plugin = async (fastify, options) => {
   // Seed categories on plugin load (idempotent)
   fastify.addHook('onReady', async () => {
     try {
-      const result = await seedCategories(supabase);
+      const result = await seedCategories(sb);
       console.log(`📂 Categories: ${result.message}`);
     } catch (err) {
       console.warn('⚠️ Category seed failed:', err.message);
@@ -219,15 +227,15 @@ const plugin = async (fastify, options) => {
             const variants = getPhoneVariants(senderId);
             let userId = null;
             for (const v of variants) {
-              const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+              const { data: u } = await sb.from('users').select('id').eq('whatsapp_number', v).limit(1);
               if (u?.[0]) { userId = u[0].id; break; }
-              const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+              const { data: u2 } = await sb.from('users').select('id').eq('phone', v).limit(1);
               if (u2?.[0]) { userId = u2[0].id; break; }
             }
             let justCreatedUser = false;
             if (!userId) {
               const canonicalPhone = normalizeForWhatsApp(senderId);
-              const { data: newUser } = await supabase.from('users').insert([{
+              const { data: newUser } = await sb.from('users').insert([{
                 whatsapp_number: canonicalPhone,
                 phone: canonicalPhone,
                 name: `User`,
@@ -242,10 +250,10 @@ const plugin = async (fastify, options) => {
               const { category } = await categorizeTransaction(
                 { merchant: receipt.merchant, upi_id: receipt.merchant, is_p2p: false },
                 userId,
-                supabase
+                sb
               );
               const txnTimestamp = receipt.date ? `${receipt.date}T12:00:00.000Z` : new Date(timestamp * 1000).toISOString();
-              const { data: txn } = await supabase.from('transactions').insert([{
+              const { data: txn } = await sb.from('transactions').insert([{
                 user_id: userId,
                 amount: amountForDb(receipt.amount),
                 merchant_name: receipt.merchant,
@@ -257,13 +265,13 @@ const plugin = async (fastify, options) => {
                 timestamp: txnTimestamp
               }]).select('id').single();
               if (txn) {
-                await supabase.from('pending_category_confirmation').upsert(
+                await sb.from('pending_category_confirmation').upsert(
                   { user_id: userId, transaction_id: txn.id },
                   { onConflict: 'user_id' }
                 );
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${receipt.amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} to *${receipt.merchant}*.\n\n${buildReceiptCategoryMessage()}`);
-                const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, category || 'Other', receipt.amount);
-                if (alertMsg && !(await isOptedOut(supabase, userId))) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
+                const alertMsg = await getBudgetAlertAfterTransaction(sb, userId, category || 'Other', receipt.amount);
+                if (alertMsg && !(await isOptedOut(sb, userId))) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
                 if (justCreatedUser) {
                   try { await sendWhatsAppText(senderId, getHelpMessage(true)); } catch (e) { /* ignore */ }
                 }
@@ -298,14 +306,14 @@ const plugin = async (fastify, options) => {
       const trimmedUpper = text.trim().toUpperCase();
       if (trimmedUpper === 'STOP') {
         for (const v of variants) {
-          const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+          const { data: u } = await sb.from('users').select('id').eq('whatsapp_number', v).limit(1);
           if (u?.[0]) {
-            await supabase.from('users').update({ opted_out: true }).eq('id', u[0].id);
+            await sb.from('users').update({ opted_out: true }).eq('id', u[0].id);
             break;
           }
-          const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+          const { data: u2 } = await sb.from('users').select('id').eq('phone', v).limit(1);
           if (u2?.[0]) {
-            await supabase.from('users').update({ opted_out: true }).eq('id', u2[0].id);
+            await sb.from('users').update({ opted_out: true }).eq('id', u2[0].id);
             break;
           }
         }
@@ -314,15 +322,15 @@ const plugin = async (fastify, options) => {
       }
       if (trimmedUpper === 'START') {
         for (const v of variants) {
-          const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+          const { data: u } = await sb.from('users').select('id').eq('whatsapp_number', v).limit(1);
           if (u?.[0]) {
-            await supabase.from('users').update({ opted_out: false }).eq('id', u[0].id);
+            await sb.from('users').update({ opted_out: false }).eq('id', u[0].id);
             await sendWhatsAppText(senderId, 'You have been resubscribed.');
             return reply.send({ success: true });
           }
-          const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+          const { data: u2 } = await sb.from('users').select('id').eq('phone', v).limit(1);
           if (u2?.[0]) {
-            await supabase.from('users').update({ opted_out: false }).eq('id', u2[0].id);
+            await sb.from('users').update({ opted_out: false }).eq('id', u2[0].id);
             await sendWhatsAppText(senderId, 'You have been resubscribed.');
             return reply.send({ success: true });
           }
@@ -334,14 +342,14 @@ const plugin = async (fastify, options) => {
       // Resolve user from senderId
       let msgUser = null;
       for (const v of variants) {
-        const { data: u } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+        const { data: u } = await sb.from('users').select('id').eq('whatsapp_number', v).limit(1);
         if (u?.[0]) { msgUser = u[0]; break; }
-        const { data: u2 } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+        const { data: u2 } = await sb.from('users').select('id').eq('phone', v).limit(1);
         if (u2?.[0]) { msgUser = u2[0]; break; }
       }
 
       if (msgUser) {
-        const { data: pending } = await supabase
+        const { data: pending } = await sb
           .from('pending_clarifications')
           .select('transaction_id, merchant_name, upi_id, awaiting_note')
           .eq('user_id', msgUser.id)
@@ -349,7 +357,7 @@ const plugin = async (fastify, options) => {
 
         // 1. Awaiting note (user selected "Other" and we asked for a note)
         if (pending?.awaiting_note) {
-          const { category, note } = await handleNoteReply(supabase, msgUser.id, text, pending);
+          const { category, note } = await handleNoteReply(sb, msgUser.id, text, pending);
           const confirm = note
             ? `✅ Saved as *${category}* with note: "${note}". Future payments to this person will use Other.`
             : `✅ Saved as *${category}*. Future payments to this person will use Other.`;
@@ -361,7 +369,7 @@ const plugin = async (fastify, options) => {
         // 2. Clarification reply (1–6)
         const choice = parseClarificationReply(text);
         if (choice !== null && pending) {
-          const result = await handleClarificationReply(supabase, msgUser.id, choice, pending);
+          const result = await handleClarificationReply(sb, msgUser.id, choice, pending);
           if (result.askedForNote) {
             await sendWhatsAppText(senderId, getAskForNoteMessage());
             console.log('📤 Asked user for note (Other selected)');
@@ -377,9 +385,9 @@ const plugin = async (fastify, options) => {
       // ----- Tier 1: WhatsApp commands (need user; create if command from new user) -----
       let cmdUser = null;
       for (const v of variants) {
-        const { data: u } = await supabase.from('users').select('id, opted_out').eq('whatsapp_number', v).limit(1);
+        const { data: u } = await sb.from('users').select('id, opted_out').eq('whatsapp_number', v).limit(1);
         if (u?.[0]) { cmdUser = u[0]; break; }
-        const { data: u2 } = await supabase.from('users').select('id, opted_out').eq('phone', v).limit(1);
+        const { data: u2 } = await sb.from('users').select('id, opted_out').eq('phone', v).limit(1);
         if (u2?.[0]) { cmdUser = u2[0]; break; }
       }
       const isBudgetCmd = /^(?:set\s+)?budget\s+.+\s+[\d,]+\.?\d*$/i.test(text.trim());
@@ -392,7 +400,7 @@ const plugin = async (fastify, options) => {
       const isDebtListCmd = parseOwedToMeCommand(text) || parseIOweCommand(text);
       if (!cmdUser && (isBudgetCmd || isReportCmd || isGroupCmd || isExpenseCmd || isFamilyCmd || isRequestCmd || isHelpCmd || isDebtListCmd)) {
         const canonicalPhone = normalizeForWhatsApp(senderId);
-        const { data: newU, error } = await supabase.from('users').insert([{
+        const { data: newU, error } = await sb.from('users').insert([{
           whatsapp_number: canonicalPhone,
           phone: canonicalPhone,
           name: `User`,
@@ -407,7 +415,7 @@ const plugin = async (fastify, options) => {
         // Two-name race: if user just answered "Who did you pay?" and a second message looks like another name, reconfirm
         const looksLikeSingleName = /^[a-zA-Z][a-zA-Z\s]{0,49}$/.test(trimmedText) && trimmedText.split(/\s+/).length <= 2 && !/^\d+$/.test(trimmedText);
         if (looksLikeSingleName) {
-          const { data: lastReply } = await supabase
+          const { data: lastReply } = await sb
             .from('last_recipient_reply')
             .select('amount, recipient_name, transaction_id, created_at')
             .eq('user_id', cmdUser.id)
@@ -417,10 +425,10 @@ const plugin = async (fastify, options) => {
             if (ageSec <= 25) {
               const secondName = trimmedText;
               const firstName = lastReply.recipient_name;
-              await supabase.from('transactions').delete().eq('id', lastReply.transaction_id);
-              await supabase.from('last_recipient_reply').delete().eq('user_id', cmdUser.id);
+              await sb.from('transactions').delete().eq('id', lastReply.transaction_id);
+              await sb.from('last_recipient_reply').delete().eq('user_id', cmdUser.id);
               const amt = amountForDb(lastReply.amount) ?? Number(lastReply.amount);
-              await supabase.from('pending_recipient_ask').upsert(
+              await sb.from('pending_recipient_ask').upsert(
                 { user_id: cmdUser.id, amount: amt },
                 { onConflict: 'user_id' }
               );
@@ -432,7 +440,7 @@ const plugin = async (fastify, options) => {
         }
 
         // Pending "Who did you pay ₹X to?" — next message is recipient name; use stored amount
-        const { data: pendingRecipient } = await supabase
+        const { data: pendingRecipient } = await sb
           .from('pending_recipient_ask')
           .select('amount')
           .eq('user_id', cmdUser.id)
@@ -441,17 +449,17 @@ const plugin = async (fastify, options) => {
           const recipientName = text.trim();
           const amount = amountForDb(pendingRecipient.amount) ?? Number(pendingRecipient.amount);
           if (amount == null || isNaN(amount) || amount <= 0) {
-            await supabase.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
+            await sb.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
             await sendWhatsAppText(senderId, 'Please send the amount you paid (e.g. 500) first, then we\'ll ask who you paid it to.');
             return reply.send({ success: true });
           }
-          await supabase.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
+          await sb.from('pending_recipient_ask').delete().eq('user_id', cmdUser.id);
           const { category: assignedCategory, source: categorySource } = await categorizeTransaction(
             { merchant: recipientName, upi_id: null, is_p2p: true, amount },
             cmdUser.id,
-            supabase
+            sb
           );
-          const { data: txn, error: txnErr } = await supabase
+          const { data: txn, error: txnErr } = await sb
             .from('transactions')
             .insert([{
               user_id: cmdUser.id,
@@ -471,7 +479,7 @@ const plugin = async (fastify, options) => {
             await sendWhatsAppText(senderId, `❌ Could not save: ${txnErr.message}`);
             return reply.send({ success: true });
           }
-          await supabase.from('last_recipient_reply').upsert({
+          await sb.from('last_recipient_reply').upsert({
             user_id: cmdUser.id,
             amount: amountForDb(amount),
             recipient_name: recipientName,
@@ -479,7 +487,7 @@ const plugin = async (fastify, options) => {
           }, { onConflict: 'user_id' });
           if (assignedCategory === 'pending_clarification') {
             try {
-              await sendClarificationAndSavePending(supabase, {
+              await sendClarificationAndSavePending(sb, {
                 userId: cmdUser.id,
                 whatsappNumber: senderId,
                 transactionId: txn.id,
@@ -499,48 +507,48 @@ const plugin = async (fastify, options) => {
           await sendWhatsAppText(senderId, getHelpMessage());
           return reply.send({ success: true });
         }
-        const { data: pendingRecurring } = await supabase.from('pending_recurring_suggestion').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
+        const { data: pendingRecurring } = await sb.from('pending_recurring_suggestion').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
         if (pendingRecurring && (trimmedLower === 'yes' || trimmedLower === 'y')) {
-          const ok = await handleRecurringYes(supabase, cmdUser.id);
+          const ok = await handleRecurringYes(sb, cmdUser.id);
           await sendWhatsAppText(senderId, ok ? '✅ Marked as recurring. We\'ll use this for future insights.' : 'No pending suggestion.');
           return reply.send({ success: true });
         }
-        const splitResult = await handleSplitReply(supabase, cmdUser.id, text);
+        const splitResult = await handleSplitReply(sb, cmdUser.id, text);
         if (splitResult.handled) {
           if (splitResult.error) await sendWhatsAppText(senderId, `❌ ${splitResult.error}`);
           else if (splitResult.message) await sendWhatsAppText(senderId, splitResult.message);
           return reply.send({ success: true });
         }
         // Category correction: user replied with a category name (e.g. "Transport") to our "tell us the right category" prompt
-        const { data: pendingCat } = await supabase.from('pending_category_confirmation').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
+        const { data: pendingCat } = await sb.from('pending_category_confirmation').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
         if (pendingCat) {
           const trimmed = text.trim().toLowerCase();
           const choiceNum = parseClarificationReply(text);
           if (choiceNum !== null) {
             const categoryFromOption = getCategoryForOptionIndex(choiceNum);
             const labelFromOption = getLabelForOptionIndex(choiceNum);
-            const { error: updErr } = await supabase.from('transactions').update({ category: categoryFromOption }).eq('id', pendingCat.transaction_id);
+            const { error: updErr } = await sb.from('transactions').update({ category: categoryFromOption }).eq('id', pendingCat.transaction_id);
             if (!updErr) {
-              await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+              await sb.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
               await sendWhatsAppText(senderId, `✅ Saved as *${labelFromOption}*.`);
             }
             return reply.send({ success: true });
           }
           if (trimmed === 'yes' || trimmed === 'y') {
-            await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+            await sb.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
             await sendWhatsAppText(senderId, '✅ Got it! Category confirmed.');
             return reply.send({ success: true });
           }
           const category = matchCategoryName(text);
           if (category) {
-            const { data: txn } = await supabase.from('transactions').select('merchant_name, upi_id').eq('id', pendingCat.transaction_id).single();
+            const { data: txn } = await sb.from('transactions').select('merchant_name, upi_id').eq('id', pendingCat.transaction_id).single();
             if (txn) {
-              await supabase.from('transactions').update({ category }).eq('id', pendingCat.transaction_id);
-              await saveToMerchantMemory(supabase, { user_id: cmdUser.id, merchant_name: txn.merchant_name || txn.upi_id || 'Unknown', upi_id: txn.upi_id || txn.merchant_name, category, is_p2p: false });
-              await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+              await sb.from('transactions').update({ category }).eq('id', pendingCat.transaction_id);
+              await saveToMerchantMemory(sb, { user_id: cmdUser.id, merchant_name: txn.merchant_name || txn.upi_id || 'Unknown', upi_id: txn.upi_id || txn.merchant_name, category, is_p2p: false });
+              await sb.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
               await sendWhatsAppText(senderId, `✅ Saved as *${category}*. Future payments to this person will use this category.`);
             } else {
-              await supabase.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
+              await sb.from('pending_category_confirmation').delete().eq('user_id', cmdUser.id);
               await sendWhatsAppText(senderId, 'Transaction no longer found. Category not updated.');
             }
             return reply.send({ success: true });
@@ -549,7 +557,7 @@ const plugin = async (fastify, options) => {
         const budgetParsed = parseBudgetCommand(text);
         if (budgetParsed) {
           try {
-            await setBudget(supabase, cmdUser.id, budgetParsed.category, budgetParsed.amount);
+            await setBudget(sb, cmdUser.id, budgetParsed.category, budgetParsed.amount);
             await sendWhatsAppText(senderId, `✅ Budget set: *${budgetParsed.category}* ₹${budgetParsed.amount.toLocaleString('en-IN')}/month. We'll alert you when you approach or exceed it.`);
           } catch (err) {
             console.error('Budget set error:', err.message);
@@ -560,7 +568,7 @@ const plugin = async (fastify, options) => {
         const reportOpt = parseReportCommand(text);
         if (reportOpt) {
           try {
-            const { byCategory, total, start, end } = await getSpendingByCategory(supabase, cmdUser.id, reportOpt);
+            const { byCategory, total, start, end } = await getSpendingByCategory(sb, cmdUser.id, reportOpt);
             const msg = formatReportMessage({ byCategory, total, start, end }, reportOpt.type);
             if (cmdUser.opted_out !== true) await sendWhatsAppText(senderId, (msg || 'No spending in this period.') + STOP_FOOTER);
           } catch (err) {
@@ -571,7 +579,7 @@ const plugin = async (fastify, options) => {
         }
         if (parseOwedToMeCommand(text)) {
           try {
-            const entries = await getOwedToMe(supabase, cmdUser.id);
+            const entries = await getOwedToMe(sb, cmdUser.id);
             await sendWhatsAppText(senderId, formatOwedToMeMessage(entries));
           } catch (err) {
             console.error('Owed to me list error:', err.message);
@@ -581,7 +589,7 @@ const plugin = async (fastify, options) => {
         }
         if (parseIOweCommand(text)) {
           try {
-            const entries = await getIOwe(supabase, cmdUser.id);
+            const entries = await getIOwe(sb, cmdUser.id);
             await sendWhatsAppText(senderId, formatIOweMessage(entries));
           } catch (err) {
             console.error('I owe list error:', err.message);
@@ -596,7 +604,7 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const group = await createGroup(supabase, cmdUser.id, groupName, senderId);
+            const group = await createGroup(sb, cmdUser.id, groupName, senderId);
             await sendWhatsAppText(senderId, `✅ Group *${group.name}* created. Add members: _add 9876543210 to ${group.name}_`);
           } catch (err) {
             console.error('Create group error:', err.message);
@@ -611,12 +619,12 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const group = await findGroupByName(supabase, cmdUser.id, addTo.groupName);
+            const group = await findGroupByName(sb, cmdUser.id, addTo.groupName);
             if (!group) {
               await sendWhatsAppText(senderId, `❌ Group "${addTo.groupName}" not found. Reply _groups_ to see your groups.`);
               return reply.send({ success: true });
             }
-            await addMemberToGroup(supabase, group.id, addTo.phone, cmdUser.id);
+            await addMemberToGroup(sb, group.id, addTo.phone, cmdUser.id);
             await sendWhatsAppText(senderId, `✅ Added ${addTo.phone} to *${group.name}*.`);
           } catch (err) {
             console.error('Add to group error:', err.message);
@@ -630,7 +638,7 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const groups = await listGroupsForUser(supabase, cmdUser.id);
+            const groups = await listGroupsForUser(sb, cmdUser.id);
             if (!groups.length) {
               await sendWhatsAppText(senderId, 'You have no groups yet. Create one: _create group Apartment_');
               return reply.send({ success: true });
@@ -650,22 +658,22 @@ const plugin = async (fastify, options) => {
             if (intent) {
               logAgentHandling('UnifiedIntent', `${intent.type}: ${intent.amount}${intent.person_name ? ` ${intent.person_name}` : ''}${intent.category ? ` ${intent.category}` : ''}`);
               if (intent.type === 'owed_to_me') {
-                await addDebtEntry(supabase, cmdUser.id, 'owed_to_me', intent.person_name, intent.amount);
+                await addDebtEntry(sb, cmdUser.id, 'owed_to_me', intent.person_name, intent.amount);
                 await sendWhatsAppText(senderId, `✅ Recorded: *${intent.person_name}* owes you ₹${intent.amount.toLocaleString('en-IN')}. Reply _who owes me_ to see your list.`);
                 return reply.send({ success: true });
               }
               if (intent.type === 'i_owe') {
-                await addDebtEntry(supabase, cmdUser.id, 'i_owe', intent.person_name, intent.amount);
+                await addDebtEntry(sb, cmdUser.id, 'i_owe', intent.person_name, intent.amount);
                 await sendWhatsAppText(senderId, `✅ Recorded: You owe *${intent.person_name}* ₹${intent.amount.toLocaleString('en-IN')}. Reply _who I owe_ to see your list.`);
                 return reply.send({ success: true });
               }
               if (intent.type === 'paid_back') {
-                await addDebtEntry(supabase, cmdUser.id, 'owed_to_me', intent.person_name, -intent.amount);
+                await addDebtEntry(sb, cmdUser.id, 'owed_to_me', intent.person_name, -intent.amount);
                 await sendWhatsAppText(senderId, `✅ Recorded: *${intent.person_name}* paid you back ₹${intent.amount.toLocaleString('en-IN')}. Your balance with them has been updated. Reply _who owes me_ to see your list.`);
                 return reply.send({ success: true });
               }
               if (intent.type === 'i_paid_back') {
-                await addDebtEntry(supabase, cmdUser.id, 'i_owe', intent.person_name, -intent.amount);
+                await addDebtEntry(sb, cmdUser.id, 'i_owe', intent.person_name, -intent.amount);
                 await sendWhatsAppText(senderId, `✅ Recorded: You paid back *${intent.person_name}* ₹${intent.amount.toLocaleString('en-IN')}. Your balance with them has been updated. Reply _who I owe_ to see your list.`);
                 return reply.send({ success: true });
               }
@@ -674,23 +682,23 @@ const plugin = async (fastify, options) => {
                   await sendWhatsAppText(senderId, "Groups are temporarily unavailable. We'll bring them back soon.");
                   return reply.send({ success: true });
                 }
-                const group = await findGroupByName(supabase, cmdUser.id, intent.group_name);
+                const group = await findGroupByName(sb, cmdUser.id, intent.group_name);
                 if (!group) {
                   await sendWhatsAppText(senderId, `❌ Group "${intent.group_name}" not found. Reply _groups_ to see your groups.`);
                   return reply.send({ success: true });
                 }
                 const expenseDate = new Date().toISOString().slice(0, 10);
                 if (intent.shares && intent.shares.length > 0) {
-                  const resolved = await resolveSharesToUserIds(supabase, group.id, cmdUser.id, intent.shares);
+                  const resolved = await resolveSharesToUserIds(sb, group.id, cmdUser.id, intent.shares);
                   if (resolved.length > 0) {
-                    await addExpenseWithShares(supabase, group.id, cmdUser.id, intent.amount, intent.description, expenseDate, resolved);
+                    await addExpenseWithShares(sb, group.id, cmdUser.id, intent.amount, intent.description, expenseDate, resolved);
                     await sendWhatsAppText(senderId, `✅ Added expense: ₹${intent.amount.toLocaleString('en-IN')} – ${intent.description} in *${group.name}* (custom split).`);
                   } else {
-                    await addExpense(supabase, group.id, cmdUser.id, intent.amount, intent.description, expenseDate);
+                    await addExpense(sb, group.id, cmdUser.id, intent.amount, intent.description, expenseDate);
                     await sendWhatsAppText(senderId, `✅ Added expense: ₹${intent.amount.toLocaleString('en-IN')} – ${intent.description} in *${group.name}* (split equally).`);
                   }
                 } else {
-                  await addExpense(supabase, group.id, cmdUser.id, intent.amount, intent.description, expenseDate);
+                  await addExpense(sb, group.id, cmdUser.id, intent.amount, intent.description, expenseDate);
                   await sendWhatsAppText(senderId, `✅ Added expense: ₹${intent.amount.toLocaleString('en-IN')} – ${intent.description} in *${group.name}* (split equally).`);
                 }
                 return reply.send({ success: true });
@@ -698,7 +706,7 @@ const plugin = async (fastify, options) => {
               if (intent.type === 'transaction') {
                 const isP2P = intent.is_p2p === true;
                 const category = isP2P ? 'pending_clarification' : intent.category;
-                const { data: txn, error: txnErr } = await supabase
+                const { data: txn, error: txnErr } = await sb
                   .from('transactions')
                   .insert([{
                     user_id: cmdUser.id,
@@ -720,7 +728,7 @@ const plugin = async (fastify, options) => {
                 }
                 if (isP2P) {
                   try {
-                    await sendClarificationAndSavePending(supabase, {
+                    await sendClarificationAndSavePending(sb, {
                       userId: cmdUser.id,
                       whatsappNumber: senderId,
                       transactionId: txn.id,
@@ -734,7 +742,7 @@ const plugin = async (fastify, options) => {
                 }
                 await sendWhatsAppText(senderId, `✅ Recorded: ₹${intent.amount.toLocaleString('en-IN')} to *${intent.merchant_name}* (${intent.category})`);
                 try {
-                  const alertMsg = await getBudgetAlertAfterTransaction(supabase, cmdUser.id, intent.category, intent.amount);
+                  const alertMsg = await getBudgetAlertAfterTransaction(sb, cmdUser.id, intent.category, intent.amount);
                   if (alertMsg && cmdUser.opted_out !== true) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
                 } catch (e) {
                   console.error('Budget alert check failed:', e.message);
@@ -751,7 +759,7 @@ const plugin = async (fastify, options) => {
         if (ENABLE_GROUPS && groupsShouldHandle(text)) {
           logAgentHandling('Groups', text.trim().slice(0, 60));
           const handled = await groupsAgentProcess(text, {
-            supabase,
+            sb,
             userId: cmdUser.id,
             senderId,
             sendWhatsAppText,
@@ -766,13 +774,13 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const group = await findGroupByName(supabase, cmdUser.id, balanceGroupName);
+            const group = await findGroupByName(sb, cmdUser.id, balanceGroupName);
             if (!group) {
               await sendWhatsAppText(senderId, `❌ Group "${balanceGroupName}" not found.`);
               return reply.send({ success: true });
             }
-            const { youOwe, owedToYou } = await getBalanceForUser(supabase, group.id, cmdUser.id);
-            const msg = await formatBalanceMessage(supabase, group.name, youOwe, owedToYou, cmdUser.id);
+            const { youOwe, owedToYou } = await getBalanceForUser(sb, group.id, cmdUser.id);
+            const msg = await formatBalanceMessage(sb, group.name, youOwe, owedToYou, cmdUser.id);
             await sendWhatsAppText(senderId, msg);
           } catch (err) {
             console.error('Balance error:', err.message);
@@ -787,18 +795,18 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const group = await findGroupByName(supabase, cmdUser.id, settleInput.groupName);
+            const group = await findGroupByName(sb, cmdUser.id, settleInput.groupName);
             if (!group) {
               await sendWhatsAppText(senderId, `❌ Group "${settleInput.groupName}" not found.`);
               return reply.send({ success: true });
             }
             const toIdentifier = settleInput.toPhone ?? settleInput.toNameOrPhone;
-            const toUserId = await resolveSettleToUser(supabase, group.id, toIdentifier);
+            const toUserId = await resolveSettleToUser(sb, group.id, toIdentifier);
             if (!toUserId) {
               await sendWhatsAppText(senderId, `❌ Could not find that member in the group. Use phone number or name.`);
               return reply.send({ success: true });
             }
-            await settleUp(supabase, group.id, cmdUser.id, toUserId, settleInput.amount);
+            await settleUp(sb, group.id, cmdUser.id, toUserId, settleInput.amount);
             await sendWhatsAppText(senderId, `✅ Recorded: You paid ₹${settleInput.amount.toLocaleString('en-IN')}. Reply _balance ${group.name}_ to see updated balance.`);
           } catch (err) {
             console.error('Settle error:', err.message);
@@ -813,7 +821,7 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const result = await addToFamily(supabase, cmdUser.id, addFamilyPhone);
+            const result = await addToFamily(sb, cmdUser.id, addFamilyPhone);
             if (result.ok) {
               await sendWhatsAppText(senderId, '✅ Added to family. Use _family summary_ to see combined spending.');
             } else {
@@ -830,7 +838,7 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           try {
-            const data = await getFamilySpendingThisMonth(supabase, cmdUser.id);
+            const data = await getFamilySpendingThisMonth(sb, cmdUser.id);
             const msg = formatFamilySummaryMessage(data);
             await sendWhatsAppText(senderId, msg);
           } catch (err) {
@@ -841,9 +849,9 @@ const plugin = async (fastify, options) => {
         const requestMoney = parseRequestMoneyCommand(text);
         if (requestMoney) {
           try {
-            const requester = await supabase.from('users').select('name, phone').eq('id', cmdUser.id).single().then(r => r.data);
+            const requester = await sb.from('users').select('name, phone').eq('id', cmdUser.id).single().then(r => r.data);
             const requesterLabel = requester?.name || requester?.phone || 'Someone';
-            const target = await findUserByPhone(supabase, requestMoney.phone);
+            const target = await findUserByPhone(sb, requestMoney.phone);
             const amountStr = `₹${requestMoney.amount.toLocaleString('en-IN')}`;
             if (target?.whatsapp_number) {
               await sendWhatsAppText(target.whatsapp_number, `💬 *UpiSense:* ${requesterLabel} is reminding you: You owe them ${amountStr}.`);
@@ -882,22 +890,22 @@ const plugin = async (fastify, options) => {
         const variants = getPhoneVariants(senderId);
         let user = null;
         for (const v of variants) {
-          const { data: byWa } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+          const { data: byWa } = await sb.from('users').select('id').eq('whatsapp_number', v).limit(1);
           if (byWa?.[0]) { user = byWa[0]; break; }
-          const { data: byPhone } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+          const { data: byPhone } = await sb.from('users').select('id').eq('phone', v).limit(1);
           if (byPhone?.[0]) { user = byPhone[0]; break; }
         }
 
         let userId = user?.id;
 
         if (userId) {
-          // Ensure whatsapp_number is updated to canonical format for future lookups
-          await supabase.from('users').update({ whatsapp_number: normalizeForWhatsApp(senderId) }).eq('id', userId);
+          // Ensure whatsapp_number is updated to canonical format for future lookups (service_role bypasses RLS)
+          await sb.from('users').update({ whatsapp_number: normalizeForWhatsApp(senderId) }).eq('id', userId);
         }
 
         if (!userId) {
           const canonicalPhone = normalizeForWhatsApp(senderId);
-          const { data: newUser, error } = await supabase
+          const { data: newUser, error } = await sb
             .from('users')
             .insert([{
               whatsapp_number: canonicalPhone,
@@ -912,14 +920,17 @@ const plugin = async (fastify, options) => {
             // Race: another request created user; do one more lookup
             if (error.code === '23505' || error.message?.includes('duplicate key')) {
               for (const v of variants) {
-                const { data: found } = await supabase.from('users').select('id').eq('phone', v).limit(1);
+                const { data: found } = await sb.from('users').select('id').eq('phone', v).limit(1);
                 if (found?.[0]) { userId = found[0].id; break; }
-                const { data: found2 } = await supabase.from('users').select('id').eq('whatsapp_number', v).limit(1);
+                const { data: found2 } = await sb.from('users').select('id').eq('whatsapp_number', v).limit(1);
                 if (found2?.[0]) { userId = found2[0].id; break; }
               }
             }
             if (!userId) {
               console.error('❌ Error creating user:', error.message);
+              if (error.message?.includes('row-level security') && !supabaseAdmin) {
+                console.error('💡 Fix: Add SUPABASE_SERVICE_ROLE_KEY in Vercel (Settings → Environment Variables). Get the key from Supabase Dashboard → Project Settings → API → service_role (secret). Then redeploy.');
+              }
               return reply.code(500).send({ error: 'Failed to create user' });
             }
           } else {
@@ -944,7 +955,7 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
           const amountToStore = amountForDb(amountNum) ?? amountNum;
-          await supabase.from('pending_recipient_ask').upsert(
+          await sb.from('pending_recipient_ask').upsert(
             { user_id: userId, amount: amountToStore },
             { onConflict: 'user_id' }
           );
@@ -968,7 +979,7 @@ const plugin = async (fastify, options) => {
             amount: parsed.amount
           },
           userId,
-          supabase
+          sb
         );
 
         // Task 6: Final confidence (memory=0.95, dictionary=0.90, else parse confidence); <0.75 → ask confirm
@@ -978,7 +989,7 @@ const plugin = async (fastify, options) => {
         );
 
         // Store transaction
-        const { data: txn, error: txnError } = await supabase
+        const { data: txn, error: txnError } = await sb
           .from('transactions')
           .insert([{
             user_id: userId,
@@ -1006,7 +1017,7 @@ const plugin = async (fastify, options) => {
         // Task 5: If P2P needed clarification, send WhatsApp and save pending
         if (assignedCategory === 'pending_clarification') {
           try {
-            await sendClarificationAndSavePending(supabase, {
+            await sendClarificationAndSavePending(sb, {
               userId,
               whatsappNumber: senderId,
               transactionId: txn.id,
@@ -1019,12 +1030,12 @@ const plugin = async (fastify, options) => {
           }
         } else if (shouldAskConfirm) {
           // Task 6: Low confidence — ask user to confirm category; save pending so reply "Transport" updates it
-          const { data: txnRow } = await supabase.from('transactions').select('amount, merchant_name').eq('id', txn.id).single();
+          const { data: txnRow } = await sb.from('transactions').select('amount, merchant_name').eq('id', txn.id).single();
           const amountDisplay = txnRow?.amount != null ? Number(txnRow.amount).toLocaleString('en-IN') : (parsed.amount != null ? String(parsed.amount) : '?');
           const merchant = txnRow?.merchant_name || parsed.merchant || parsed.upi_id || 'Unknown';
           const msg = `We categorized your payment of ₹${amountDisplay} to *${merchant}* as *${assignedCategory}*. Reply YES if correct, or tell us the right category (e.g. Transport, Food).`;
           try {
-            await supabase.from('pending_category_confirmation').upsert({ user_id: userId, transaction_id: txn.id }, { onConflict: 'user_id' });
+            await sb.from('pending_category_confirmation').upsert({ user_id: userId, transaction_id: txn.id }, { onConflict: 'user_id' });
             await sendWhatsAppText(senderId, msg);
             console.log('📤 Sent confidence confirmation request');
           } catch (err) {
@@ -1042,8 +1053,8 @@ const plugin = async (fastify, options) => {
           }
           // Tier 1: Budget alert when approaching or exceeding limit (skip if user opted out)
           try {
-            const alertMsg = await getBudgetAlertAfterTransaction(supabase, userId, assignedCategory, parsed.amount);
-            if (alertMsg && !(await isOptedOut(supabase, userId))) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
+            const alertMsg = await getBudgetAlertAfterTransaction(sb, userId, assignedCategory, parsed.amount);
+            if (alertMsg && !(await isOptedOut(sb, userId))) await sendWhatsAppText(senderId, alertMsg + STOP_FOOTER);
           } catch (err) {
             console.error('Budget alert check failed:', err.message);
           }
@@ -1052,7 +1063,7 @@ const plugin = async (fastify, options) => {
         return reply.send({ success: true, parsed: true, txnId: txn.id });
       } else {
         console.log('⚠️  Could not parse transaction (both regex and LLM failed)');
-        await logParseFailure(text, 'Both regex and LLM failed', { from_masked: senderId ? senderId.slice(-4) : null }, supabase);
+        await logParseFailure(text, 'Both regex and LLM failed', { from_masked: senderId ? senderId.slice(-4) : null }, sb);
         return reply.send({ success: true, parsed: false, message: 'Transaction parsing failed. Please check the message format.' });
       }
     } catch (error) {
@@ -1119,7 +1130,7 @@ const plugin = async (fastify, options) => {
         });
       } else {
         console.log('⚠️  Could not parse message');
-        await logParseFailure(message, 'Parse failed (api/parse)', {}, supabase);
+        await logParseFailure(message, 'Parse failed (api/parse)', {}, sb);
         return reply.send({ 
           success: true, 
           parsed: false,
@@ -1137,7 +1148,7 @@ const plugin = async (fastify, options) => {
   fastify.get('/api/admin/error-summary', async (request, reply) => {
     try {
       const sinceDays = Math.min(31, Math.max(1, parseInt(request.query.since_days, 10) || 7));
-      const summary = await getParseFailureSummary({ sinceDays, limit: 200 }, supabase);
+      const summary = await getParseFailureSummary({ sinceDays, limit: 200 }, sb);
       return reply.send({
         success: true,
         parse_failures: summary,
@@ -1151,7 +1162,7 @@ const plugin = async (fastify, options) => {
   // Seed categories (Task 4 - idempotent, run manually if needed)
   fastify.post('/api/categories/seed', async (request, reply) => {
     try {
-      const result = await seedCategories(supabase);
+      const result = await seedCategories(sb);
       return reply.send({ success: true, ...result });
     } catch (error) {
       return reply.code(500).send({ error: error.message });
@@ -1161,7 +1172,7 @@ const plugin = async (fastify, options) => {
   // List categories (Task 4 - system defaults + DB)
   fastify.get('/api/categories', async (request, reply) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('categories')
         .select('id, name, icon, color, is_default')
         .is('user_id', null)
@@ -1217,7 +1228,7 @@ const plugin = async (fastify, options) => {
       // Use first user as fallback for testing when user_id not provided
       let testUserId = user_id;
       if (!testUserId) {
-        const { data: users } = await supabase.from('users').select('id').limit(1);
+        const { data: users } = await sb.from('users').select('id').limit(1);
         testUserId = users?.[0]?.id;
       }
       if (!testUserId) {
@@ -1230,7 +1241,7 @@ const plugin = async (fastify, options) => {
         upi_id: upi_id || merchant,
         is_p2p: is_p2p === true
       };
-      const { category, source } = await categorizeTransaction(txn, testUserId, supabase);
+      const { category, source } = await categorizeTransaction(txn, testUserId, sb);
       return reply.send({
         success: true,
         merchant: txn.merchant,
@@ -1252,7 +1263,7 @@ const plugin = async (fastify, options) => {
           error: 'Missing required fields: user_id, merchant_name, category'
         });
       }
-      await saveToMerchantMemory(supabase, {
+      await saveToMerchantMemory(sb, {
         user_id,
         upi_id: upi_id || merchant_name,
         merchant_name,

@@ -101,11 +101,13 @@ const plugin = async (fastify, options) => {
       }
 
       if (!user) {
-        // Create user on first OTP verification (normalize for consistent storage)
+        // Create user on first OTP verification (normalize for consistent storage).
+        // Use service_role client so RLS allows insert (users table has no INSERT policy for anon).
         const digits = phone.replace(/\D/g, '');
         const whatsappNumber = normalizeForWhatsApp(phone);
         const phoneStored = digits.length === 10 ? digits : whatsappNumber; // store 10-digit as phone
-        const { data: newUser, error } = await supabase
+        const sb = supabaseAdmin || supabase;
+        const { data: newUser, error } = await sb
           .from('users')
           .insert([{
             phone: phoneStored,
