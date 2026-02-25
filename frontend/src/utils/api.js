@@ -1,10 +1,15 @@
 /**
  * API client for UpiSense backend
+ * Production: set VITE_API_URL to your backend URL (e.g. https://upi-sense-mnly.vercel.app)
+ * or dashboard API calls will 404 and show no data.
  */
 
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+if (import.meta.env.PROD && !API_BASE) {
+  console.warn('[UpiSense] VITE_API_URL is not set. Set it in your frontend build env (e.g. Vercel) to your backend URL, then redeploy. Otherwise API calls will 404.');
+}
 
 const TOKEN_KEY = 'upisense_token';
 const USER_KEY = 'upisense_user';
