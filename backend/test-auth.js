@@ -13,24 +13,37 @@ async function testAuthFlow() {
     console.log('Step 1: SIGNUP');
     console.log('═'.repeat(60));
     
+    const testEmail = process.env.TEST_EMAIL || 'test@example.com';
     const signupRes = await axios.post(`${BASE_URL}/auth/signup`, {
       phone: '919876543220',
-      name: 'Test User'
+      name: 'Test User',
+      email: testEmail,
     });
 
     console.log('✅ Signup Response:');
     console.log(`   Message: ${signupRes.data.message}`);
-    console.log(`   OTP (dev): ${signupRes.data.otp}`);
-    console.log(`   SessionId: ${signupRes.data.sessionId}\n`);
+    console.log(`   SessionId: ${signupRes.data.sessionId}`);
+    console.log('   Check your email for the OTP. Set TEST_OTP=<code> and re-run to test verify.\n');
 
-    // Step 2: Verify OTP
+    // Step 2: Verify OTP (requires real OTP from email)
+    const testOtp = process.env.TEST_OTP;
+    if (!testOtp) {
+      console.log('═'.repeat(60));
+      console.log('Step 2: VERIFY OTP (skipped - set TEST_OTP to the code from your email)');
+      console.log('═'.repeat(60));
+      console.log('Skipping verify. Signup succeeded. Set TEST_OTP=XXXXXX and re-run to test full flow.\n');
+      return;
+    }
+
     console.log('═'.repeat(60));
     console.log('Step 2: VERIFY OTP');
     console.log('═'.repeat(60));
 
     const verifyRes = await axios.post(`${BASE_URL}/auth/verify`, {
       phone: '919876543220',
-      otp: signupRes.data.otp
+      email: testEmail,
+      otp: testOtp,
+      name: 'Test User',
     });
 
     console.log('✅ Verify Response:');

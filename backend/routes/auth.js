@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { normalizeForWhatsApp, getPhoneVariants } = require('../lib/phoneUtils.js');
-const { verifyIdToken, isFirebaseConfigured } = require('../lib/firebaseAdmin.js');
+const { sendOtp: sendOtpSms, verifyOtp: verifyOtpCode, isConfigured: isOtpServiceConfigured } = require('../lib/otpService.js');
+const { sendOtp: sendEmailOtp, verifyOtp: verifyEmailOtp, isConfigured: isEmailOtpConfigured } = require('../lib/emailOtpService.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -17,22 +18,24 @@ const sb = supabaseAdmin || supabase;
 const plugin = async (fastify, options) => {
   /**
    * POST /auth/signup
-   * Request: { phone: string, name?: string }
-   * Response: { message: string, sessionId: string, otp: string (dev only) }
+   * Request: { phone: string, name?: string, email: string }
+   * Sends OTP to email (Gmail SMTP). GMAIL_USER + GMAIL_APP_PASSWORD required.
    */
   fastify.post('/auth/signup', async (request, reply) => {
-    const { phone, name } = request.body;
-    console.log('[auth] POST /auth/signup called (backend does not send SMS; for real OTP frontend must use Firebase)');
+    const { phone, name, email } = request.body;
 
-    // Validate phone
     if (!phone || !phone.match(/^[0-9]{10,15}$/)) {
-      return reply.code(400).send({ 
-        error: 'Invalid phone number. Must be 10-15 digits.' 
-      });
+      return reply.code(400).send({ error: 'Invalid phone number. Must be 10-15 digits.' });
+    }
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return reply.code(400).send({ error: 'Email is required.' });
+    }
+    const emailTrimmed = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      return reply.code(400).send({ error: 'Invalid email address.' });
     }
 
     try {
-      // Check if user exists (try both 9372999366 and 919372999366 formats)
       const variants = getPhoneVariants(phone);
       let existing = null;
       for (const v of variants) {
@@ -43,22 +46,20 @@ const plugin = async (fastify, options) => {
       }
 
       if (existing) {
-        console.log(`👤 User ${phone} already exists. Sending OTP...`);
-        const payload = {
-          message: 'OTP sent to your phone',
-          sessionId: `session_${Date.now()}`
-        };
-        if (!isFirebaseConfigured()) payload.otp = '123456'; // dev only when Firebase not used
-        return reply.send(payload);
+        console.log(`👤 User ${phone} already exists. Sending OTP to email...`);
+      } else {
+        console.log(`✨ New signup: ${phone}, email: ${emailTrimmed}`);
       }
 
-      console.log(`✨ New signup: ${phone}`);
-      const payload = {
-        message: 'OTP sent to your phone',
-        sessionId: `session_${Date.now()}`
-      };
-      if (!isFirebaseConfigured()) payload.otp = '123456'; // dev only
-      return reply.send(payload);
+      if (!isEmailOtpConfigured()) {
+        return reply.code(503).send({ error: 'OTP service is not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in .env to send verification codes to email.' });
+      }
+      const result = await sendEmailOtp(emailTrimmed);
+      if (!result.sent) {
+        console.error('[auth] Email OTP send failed:', result.error);
+        return reply.code(502).send({ error: result.error || 'Failed to send OTP. Try again.' });
+      }
+      return reply.send({ message: 'OTP sent to your email', sessionId: `session_${Date.now()}` });
     } catch (error) {
       console.error('❌ Signup error:', error.message);
       return reply.code(500).send({ error: 'Server error' });
@@ -67,41 +68,38 @@ const plugin = async (fastify, options) => {
 
   /**
    * POST /auth/verify
-   * Request: { phone?: string, otp?: string, idToken?: string, name?: string, rememberMe?: boolean }
-   * When idToken is provided (Firebase Phone Auth), phone is taken from the token and OTP is not used.
-   * When idToken is not provided, legacy OTP flow is used (dev OTP 123456 if Firebase not configured).
+   * Request: { phone, email, otp, name?, rememberMe? }
+   * Verifies email OTP, then get/create user by phone and set email.
    * Response: { success: true, token: string, user: {...} }
    */
   fastify.post('/auth/verify', async (request, reply) => {
-    const { phone: phoneFromBody, otp, idToken, name: nameFromBody, rememberMe } = request.body || {};
-
-    let phone = phoneFromBody;
+    const { phone: phoneFromBody, email: emailFromBody, otp, name: nameFromBody, rememberMe } = request.body || {};
+    const phone = phoneFromBody;
+    let verifiedEmail = null;
 
     try {
-      // Firebase path: verify ID token and get phone from it
-      if (idToken && typeof idToken === 'string' && idToken.trim()) {
-        const firebaseResult = await verifyIdToken(idToken.trim());
-        if (!firebaseResult) {
-          return reply.code(401).send({ error: 'Invalid or expired verification. Please request a new OTP.' });
+      if (!phone || !otp) {
+        return reply.code(400).send({ error: 'Missing phone or OTP' });
+      }
+      if (!phone.match(/^[0-9]{10,15}$/)) {
+        return reply.code(400).send({ error: 'Invalid phone number' });
+      }
+      const emailTrimmed = emailFromBody && String(emailFromBody).trim().toLowerCase();
+      if (isEmailOtpConfigured()) {
+        if (!emailTrimmed) {
+          return reply.code(400).send({ error: 'Email is required for verification.' });
         }
-        // E.164 -> digits only for our DB (e.g. +919876543210 -> 9876543210)
-        phone = firebaseResult.phone_number.replace(/\D/g, '');
-        if (phone.startsWith('91') && phone.length === 12) phone = phone.slice(2);
+        if (!verifyEmailOtp(emailTrimmed, otp)) {
+          return reply.code(401).send({ error: 'Invalid or expired OTP. Request a new code.' });
+        }
+        verifiedEmail = emailTrimmed;
+      } else if (isOtpServiceConfigured()) {
+        if (!verifyOtpCode(phone, otp)) {
+          return reply.code(401).send({ error: 'Invalid or expired OTP. Request a new code.' });
+        }
+        verifiedEmail = emailTrimmed || null;
       } else {
-        // Legacy OTP path (only when Firebase is not configured)
-        if (isFirebaseConfigured()) {
-          return reply.code(400).send({ error: 'Please use Send OTP to receive a verification code on your phone.' });
-        }
-        if (!phone || !otp) {
-          return reply.code(400).send({ error: 'Missing phone or OTP' });
-        }
-        if (!phone.match(/^[0-9]{10,15}$/)) {
-          return reply.code(400).send({ error: 'Invalid phone number' });
-        }
-        const validOtps = ['123456', '111111', '000000'];
-        if (!validOtps.includes(otp)) {
-          return reply.code(401).send({ error: 'Invalid OTP' });
-        }
+        return reply.code(401).send({ error: 'Invalid or expired OTP. Request a new code.' });
       }
 
       // Get or create user (try both 9372999366 and 919372999366 formats to avoid duplicates)
@@ -120,14 +118,16 @@ const plugin = async (fastify, options) => {
         const digits = phone.replace(/\D/g, '');
         const whatsappNumber = normalizeForWhatsApp(phone);
         const phoneStored = digits.length === 10 ? digits : whatsappNumber; // store 10-digit as phone
+        const insertPayload = {
+          phone: phoneStored,
+          whatsapp_number: whatsappNumber,
+          name: (nameFromBody && String(nameFromBody).trim()) ? String(nameFromBody).trim().slice(0, 255) : 'User',
+          plan: 'free'
+        };
+        if (verifiedEmail) insertPayload.email = verifiedEmail.slice(0, 255);
         const { data: newUser, error } = await sb
           .from('users')
-          .insert([{
-            phone: phoneStored,
-            whatsapp_number: whatsappNumber,
-            name: (nameFromBody && String(nameFromBody).trim()) ? String(nameFromBody).trim().slice(0, 255) : 'User',
-            plan: 'free'
-          }])
+          .insert([insertPayload])
           .select('*')
           .single();
 
@@ -151,6 +151,10 @@ const plugin = async (fastify, options) => {
         }
       } else {
         console.log(`✅ Authenticated existing user: ${user.id}`);
+        if (verifiedEmail) {
+          await sb.from('users').update({ email: verifiedEmail.slice(0, 255), updated_at: new Date().toISOString() }).eq('id', user.id);
+          user = { ...user, email: verifiedEmail };
+        }
       }
 
       // Generate JWT token (long-lived when rememberMe, else session-length)
@@ -174,7 +178,8 @@ const plugin = async (fastify, options) => {
             phone: user.phone,
             name: user.name,
             plan: user.plan,
-            whatsapp_number: user.whatsapp_number
+            whatsapp_number: user.whatsapp_number,
+            email: user.email || null
           }
         });
       } catch (jwtError) {
@@ -191,10 +196,13 @@ const plugin = async (fastify, options) => {
 
   /**
    * GET /auth/config
-   * Returns whether backend expects Firebase ID token for verify (so frontend can use Firebase Phone Auth).
+   * useRealOtp / useEmailOtp for frontend OTP UI.
    */
   fastify.get('/auth/config', async (request, reply) => {
-    return reply.send({ useFirebase: isFirebaseConfigured() });
+    return reply.send({
+      useRealOtp: isEmailOtpConfigured() || isOtpServiceConfigured(),
+      useEmailOtp: isEmailOtpConfigured(),
+    });
   });
 
   /**
@@ -209,7 +217,7 @@ const plugin = async (fastify, options) => {
 
       const { data: user, error } = await sb
         .from('users')
-        .select('id, phone, name, plan, whatsapp_number, created_at')
+        .select('id, phone, name, plan, whatsapp_number, email, created_at')
         .eq('id', userId)
         .single();
 
@@ -250,7 +258,7 @@ const plugin = async (fastify, options) => {
       }
 
       if (Object.keys(updates).length === 0) {
-        const { data: user } = await sb.from('users').select('id, phone, name, plan, whatsapp_number, created_at').eq('id', userId).single();
+        const { data: user } = await sb.from('users').select('id, phone, name, plan, whatsapp_number, email, created_at').eq('id', userId).single();
         return reply.send({ success: true, user: user || {} });
       }
 
@@ -258,7 +266,7 @@ const plugin = async (fastify, options) => {
         .from('users')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', userId)
-        .select('id, phone, name, plan, whatsapp_number, created_at')
+        .select('id, phone, name, plan, whatsapp_number, email, created_at')
         .single();
 
       if (error) {

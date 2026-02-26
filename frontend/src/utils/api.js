@@ -52,10 +52,8 @@ api.interceptors.response.use(
 );
 
 export const auth = {
-  signup: (phone, name) => api.post('/auth/signup', { phone, name }),
-  verify: (phone, otp, name, rememberMe) => api.post('/auth/verify', { phone, otp, name, rememberMe }),
-  /** Verify with Firebase ID token (real OTP). Backend extracts phone from token. */
-  verifyWithIdToken: (idToken, name, rememberMe) => api.post('/auth/verify', { idToken, name, rememberMe }),
+  signup: (phone, name, email) => api.post('/auth/signup', { phone, name, email }),
+  verify: (phone, email, otp, name, rememberMe) => api.post('/auth/verify', { phone, email, otp, name, rememberMe }),
   config: () => api.get('/auth/config'),
   profile: () => api.get('/auth/profile'),
   updateProfile: (data) => api.patch('/auth/profile', data),

@@ -2,24 +2,27 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
-import { isFirebaseEnabled, sendPhoneOtp, getIdToken } from '../lib/firebase';
 
 export function Login() {
   const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState(null); // Firebase phone auth
+  const [useRealOtp, setUseRealOtp] = useState(true);
+  const [useEmailOtp, setUseEmailOtp] = useState(true);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [logoSrc, setLogoSrc] = useState('/logo.png');
-  const useRealOtp = isFirebaseEnabled;
 
   useEffect(() => {
-    console.log('[Login] Firebase enabled (useRealOtp):', useRealOtp);
-  }, [useRealOtp]);
+    auth.config().then((r) => {
+      setUseRealOtp(r.data?.useRealOtp !== false);
+      setUseEmailOtp(r.data?.useEmailOtp !== false);
+    }).catch(() => { setUseRealOtp(false); setUseEmailOtp(false); });
+  }, []);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,25 +51,21 @@ export function Login() {
       setError('Enter your name');
       return;
     }
+    if (!email || !email.trim()) {
+      setError('Enter your email address');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email address');
+      return;
+    }
     setLoading(true);
     try {
-      if (useRealOtp) {
-        console.log('[Login] Using Firebase to send OTP to', phone);
-        const confirmation = await sendPhoneOtp(phone.replace(/\D/g, ''), 'send-otp-btn');
-        console.log('[Login] Firebase OTP sent successfully');
-        setConfirmationResult(confirmation);
-        setStep('otp');
-        setError('');
-      } else {
-        console.log('[Login] Using legacy signup (no SMS sent; backend does not send OTP)');
-        await auth.signup(phone.replace(/\D/g, ''), name.trim());
-        setStep('otp');
-        setError('');
-      }
+      await auth.signup(phone.replace(/\D/g, ''), name.trim(), email.trim());
+      setStep('otp');
+      setError('');
     } catch (err) {
-      console.log('[Login] Send OTP error:', err?.message || err, err?.code);
-      const msg = err.response?.data?.error || err.message || 'Failed to send OTP';
-      setError(msg);
+      setError(err.response?.data?.error || err.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -81,16 +80,8 @@ export function Login() {
     }
     setLoading(true);
     try {
-      let data;
-      if (useRealOtp && confirmationResult) {
-        const userCred = await confirmationResult.confirm(otp);
-        const idToken = await getIdToken(userCred.user);
-        const res = await auth.verifyWithIdToken(idToken, name.trim(), rememberMe);
-        data = res.data;
-      } else {
-        const res = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim(), rememberMe);
-        data = res.data;
-      }
+      const res = await auth.verify(phone.replace(/\D/g, ''), email.trim(), otp, name.trim(), rememberMe);
+      const data = res.data;
       if (data.success && data.token && data.user) {
         setUser(data.user, data.token, rememberMe === true);
         navigate(from, { replace: true });
@@ -133,6 +124,15 @@ export function Login() {
                 placeholder="9876543210"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-slate-800"
                 maxLength={15}
+              />
+              <label className="block text-sm font-medium text-slate-600">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value.trimStart().slice(0, 255))}
+                placeholder="you@example.com"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-slate-800"
+                maxLength={255}
               />
               <label className="block text-sm font-medium text-slate-600">Your name</label>
               <input
@@ -179,13 +179,13 @@ export function Login() {
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <p className="text-sm text-slate-600">
-                {useRealOtp ? `Enter the 6-digit code sent to ${phone}` : `OTP sent to ${phone}. For dev, use 123456`}
+                {useEmailOtp ? `Enter the 6-digit code sent to ${email}` : `Enter the 6-digit code sent to ${phone}`}
               </p>
               <input
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder={useRealOtp ? '000000' : '123456'}
+                placeholder="Enter code"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-center text-lg tracking-widest text-slate-800"
                 maxLength={6}
               />
@@ -208,10 +208,10 @@ export function Login() {
               </button>
               <button
                 type="button"
-                onClick={() => { setStep('phone'); setOtp(''); setError(''); setConfirmationResult(null); }}
+                onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
                 className="w-full text-sm text-slate-500 hover:text-slate-800"
               >
-                Change number
+                Change number or email
               </button>
             </form>
           )}
