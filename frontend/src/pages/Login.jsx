@@ -2,17 +2,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
 import { auth } from '../utils/api';
+import { isFirebaseEnabled, sendPhoneOtp, getIdToken } from '../lib/firebase';
 
 export function Login() {
   const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState(null); // Firebase phone auth
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [logoSrc, setLogoSrc] = useState('/logo.png');
+  const useRealOtp = isFirebaseEnabled;
+
+  useEffect(() => {
+    console.log('[Login] Firebase enabled (useRealOtp):', useRealOtp);
+  }, [useRealOtp]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,11 +50,23 @@ export function Login() {
     }
     setLoading(true);
     try {
-      await auth.signup(phone.replace(/\D/g, ''), name.trim());
-      setStep('otp');
-      setError('');
+      if (useRealOtp) {
+        console.log('[Login] Using Firebase to send OTP to', phone);
+        const confirmation = await sendPhoneOtp(phone.replace(/\D/g, ''), 'send-otp-btn');
+        console.log('[Login] Firebase OTP sent successfully');
+        setConfirmationResult(confirmation);
+        setStep('otp');
+        setError('');
+      } else {
+        console.log('[Login] Using legacy signup (no SMS sent; backend does not send OTP)');
+        await auth.signup(phone.replace(/\D/g, ''), name.trim());
+        setStep('otp');
+        setError('');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP');
+      console.log('[Login] Send OTP error:', err?.message || err, err?.code);
+      const msg = err.response?.data?.error || err.message || 'Failed to send OTP';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -62,7 +81,16 @@ export function Login() {
     }
     setLoading(true);
     try {
-      const { data } = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim(), rememberMe);
+      let data;
+      if (useRealOtp && confirmationResult) {
+        const userCred = await confirmationResult.confirm(otp);
+        const idToken = await getIdToken(userCred.user);
+        const res = await auth.verifyWithIdToken(idToken, name.trim(), rememberMe);
+        data = res.data;
+      } else {
+        const res = await auth.verify(phone.replace(/\D/g, ''), otp, name.trim(), rememberMe);
+        data = res.data;
+      }
       if (data.success && data.token && data.user) {
         setUser(data.user, data.token, rememberMe === true);
         navigate(from, { replace: true });
@@ -70,7 +98,7 @@ export function Login() {
         setError('Verification failed');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid OTP');
+      setError(err.response?.data?.error || err.message || 'Invalid OTP');
     } finally {
       setLoading(false);
     }
@@ -140,6 +168,7 @@ export function Login() {
               </label>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
+                id="send-otp-btn"
                 type="submit"
                 disabled={loading}
                 className="w-full py-3 bg-teal-500 text-white font-semibold rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
@@ -150,13 +179,13 @@ export function Login() {
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <p className="text-sm text-slate-600">
-                OTP sent to {phone}. For dev, use <strong>123456</strong>
+                {useRealOtp ? `Enter the 6-digit code sent to ${phone}` : `OTP sent to ${phone}. For dev, use 123456`}
               </p>
               <input
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456"
+                placeholder={useRealOtp ? '000000' : '123456'}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-center text-lg tracking-widest text-slate-800"
                 maxLength={6}
               />
@@ -179,7 +208,7 @@ export function Login() {
               </button>
               <button
                 type="button"
-                onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
+                onClick={() => { setStep('phone'); setOtp(''); setError(''); setConfirmationResult(null); }}
                 className="w-full text-sm text-slate-500 hover:text-slate-800"
               >
                 Change number

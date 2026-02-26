@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { normalizeForWhatsApp, getPhoneVariants } = require('../lib/phoneUtils.js');
+const { verifyIdToken, isFirebaseConfigured } = require('../lib/firebaseAdmin.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -21,6 +22,7 @@ const plugin = async (fastify, options) => {
    */
   fastify.post('/auth/signup', async (request, reply) => {
     const { phone, name } = request.body;
+    console.log('[auth] POST /auth/signup called (backend does not send SMS; for real OTP frontend must use Firebase)');
 
     // Validate phone
     if (!phone || !phone.match(/^[0-9]{10,15}$/)) {
@@ -42,22 +44,21 @@ const plugin = async (fastify, options) => {
 
       if (existing) {
         console.log(`👤 User ${phone} already exists. Sending OTP...`);
-        return reply.send({
+        const payload = {
           message: 'OTP sent to your phone',
-          sessionId: `session_${Date.now()}`,
-          otp: '123456' // FOR DEVELOPMENT ONLY - Remove in production
-        });
+          sessionId: `session_${Date.now()}`
+        };
+        if (!isFirebaseConfigured()) payload.otp = '123456'; // dev only when Firebase not used
+        return reply.send(payload);
       }
 
       console.log(`✨ New signup: ${phone}`);
-
-      // TODO: Send OTP via MSG91 or similar service
-      // For now, accept any 6-digit OTP
-      return reply.send({
+      const payload = {
         message: 'OTP sent to your phone',
-        sessionId: `session_${Date.now()}`,
-        otp: '123456' // FOR DEVELOPMENT ONLY
-      });
+        sessionId: `session_${Date.now()}`
+      };
+      if (!isFirebaseConfigured()) payload.otp = '123456'; // dev only
+      return reply.send(payload);
     } catch (error) {
       console.error('❌ Signup error:', error.message);
       return reply.code(500).send({ error: 'Server error' });
@@ -66,29 +67,41 @@ const plugin = async (fastify, options) => {
 
   /**
    * POST /auth/verify
-   * Request: { phone: string, otp: string }
+   * Request: { phone?: string, otp?: string, idToken?: string, name?: string, rememberMe?: boolean }
+   * When idToken is provided (Firebase Phone Auth), phone is taken from the token and OTP is not used.
+   * When idToken is not provided, legacy OTP flow is used (dev OTP 123456 if Firebase not configured).
    * Response: { success: true, token: string, user: {...} }
    */
   fastify.post('/auth/verify', async (request, reply) => {
-      const { phone, otp, name: nameFromBody, rememberMe } = request.body || {};
+    const { phone: phoneFromBody, otp, idToken, name: nameFromBody, rememberMe } = request.body || {};
 
-    if (!phone || !otp) {
-      return reply.code(400).send({ error: 'Missing phone or OTP' });
-    }
-
-    // Validate phone format
-    if (!phone.match(/^[0-9]{10,15}$/)) {
-      return reply.code(400).send({ 
-        error: 'Invalid phone number' 
-      });
-    }
+    let phone = phoneFromBody;
 
     try {
-      // TODO: Verify OTP with MSG91 or similar service
-      // For development, accept OTP "123456"
-      const validOtps = ['123456', '111111', '000000'];
-      if (!validOtps.includes(otp)) {
-        return reply.code(401).send({ error: 'Invalid OTP' });
+      // Firebase path: verify ID token and get phone from it
+      if (idToken && typeof idToken === 'string' && idToken.trim()) {
+        const firebaseResult = await verifyIdToken(idToken.trim());
+        if (!firebaseResult) {
+          return reply.code(401).send({ error: 'Invalid or expired verification. Please request a new OTP.' });
+        }
+        // E.164 -> digits only for our DB (e.g. +919876543210 -> 9876543210)
+        phone = firebaseResult.phone_number.replace(/\D/g, '');
+        if (phone.startsWith('91') && phone.length === 12) phone = phone.slice(2);
+      } else {
+        // Legacy OTP path (only when Firebase is not configured)
+        if (isFirebaseConfigured()) {
+          return reply.code(400).send({ error: 'Please use Send OTP to receive a verification code on your phone.' });
+        }
+        if (!phone || !otp) {
+          return reply.code(400).send({ error: 'Missing phone or OTP' });
+        }
+        if (!phone.match(/^[0-9]{10,15}$/)) {
+          return reply.code(400).send({ error: 'Invalid phone number' });
+        }
+        const validOtps = ['123456', '111111', '000000'];
+        if (!validOtps.includes(otp)) {
+          return reply.code(401).send({ error: 'Invalid OTP' });
+        }
       }
 
       // Get or create user (try both 9372999366 and 919372999366 formats to avoid duplicates)
@@ -174,6 +187,14 @@ const plugin = async (fastify, options) => {
       console.error('Full error:', error);
       return reply.code(500).send({ error: error.message || 'Server error' });
     }
+  });
+
+  /**
+   * GET /auth/config
+   * Returns whether backend expects Firebase ID token for verify (so frontend can use Firebase Phone Auth).
+   */
+  fastify.get('/auth/config', async (request, reply) => {
+    return reply.send({ useFirebase: isFirebaseConfigured() });
   });
 
   /**
