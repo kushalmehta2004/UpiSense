@@ -47,8 +47,8 @@ async function parseWithUnifiedAgent(text) {
   const prompt = `You are a financial assistant. The user sends messages about payments, group expenses, or informal debt (IOUs). Your job is to interpret the message and output ONE structured JSON object that matches our schema.
 
 Output schema (use exactly these field names):
-- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "paid_back" | "i_paid_back" | "report" | "set_budget" | "list_owed_to_me" | "list_i_owe" | "request_money" | "help" | "none"
-- amount: number (INR) – required for all except type "none", "report", "list_owed_to_me", "list_i_owe", "help"
+- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "paid_back" | "i_paid_back" | "report" | "forecast" | "set_budget" | "list_owed_to_me" | "list_i_owe" | "request_money" | "help" | "none"
+- amount: number (INR) – required for all except type "none", "report", "forecast", "list_owed_to_me", "list_i_owe", "help"
 - For type "transaction": merchant_name (required – who/where; if unknown use "none" type), category. Always use "Food & Dining" for restaurant, cafe, dinner, food, eatery, bar, pub. Use "Transport" for cab, auto, uber, ola. Use "Health" for pharmacy, medicine.
 - IMPORTANT: "paid back" and "returned" are DEBT SETTLEMENTS, not expenses. Use type "paid_back" when someone who OWES the user pays them back (e.g. "Kushal paid back 1230", "Ravi returned my 500", "Priya paid me back 200"). Use type "i_paid_back" when the user pays back someone they owe (e.g. "I paid back Samkit 300", "I returned 500 to Raj"). Do NOT use type "transaction" for these – they are not transport or any expense category.
 - If the user says what the payment was for (e.g. "for dinner", "for groceries", "for petrol"), infer the category from that and set "is_p2p": false so we do NOT ask what it was for. E.g. "I paid Rachit 200 for dinner" → category "Food & Dining", merchant_name "Rachit", is_p2p false. "Paid John 500 for groceries" → category "Groceries", is_p2p false.
@@ -60,6 +60,7 @@ Output schema (use exactly these field names):
 - For type "paid_back": person_name (who paid the user back – someone who owed them). E.g. "Kushal paid back 1230" → person_name "Kushal", amount 1230. "Ravi returned my 500" → person_name "Ravi", amount 500. "Priya paid me back" with amount → person_name "Priya", amount.
 - For type "i_paid_back": person_name (who the user paid back – someone they owed). E.g. "I paid back Samkit 300" → person_name "Samkit", amount 300. "I returned 500 to Raj" → person_name "Raj", amount 500.
 - For type "report": report_month (number 0-11, 0 is Jan) based on user's mention of the month. If no year mentioned, assume the current year for report_year. If only year is mentioned, report_month is null. Example: "feb 2026" -> report_month: 1, report_year: 2026.
+- For type "forecast": target_month (number 0-11, 0 is Jan) and target_year (YYYY). If the user says "predict next month" or "forecast my budget", infer the target month (usually the upcoming month) based on today's date: {{TODAY_IST}}.
 - For type "set_budget": category (e.g., Food & Dining, Groceries, Travel), amount.
 - For type "list_owed_to_me": no extra fields. Used for questions like "who owes me?"
 - For type "list_i_owe": no extra fields. Used for questions like "who do I owe?"
@@ -88,6 +89,8 @@ Examples:
 - "Paid for dinner day before yesterday 400 at cafe" → {"type":"transaction","amount":400,"merchant_name":"cafe","category":"Food & Dining","expense_date":"<day before yesterday YYYY-MM-DD>"}
 - "what did i spend this month" → {"type":"report","report_year":2026,"report_month":<current_month>}
 - "monthly report for feb 2026" → {"type":"report","report_month":1,"report_year":2026}
+- "predict my expenses for next month" → {"type":"forecast","target_month":<next_month>,"target_year":2026}
+- "forecast my march budget" → {"type":"forecast","target_month":2,"target_year":2026}
 - "set my food budget to 5000" → {"type":"set_budget","category":"Food & Dining","amount":5000}
 - "who owes me money?" → {"type":"list_owed_to_me"}
 - "who do i owe money to?" → {"type":"list_i_owe"}
@@ -196,6 +199,13 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
       return { type: 'report', report_year: year, report_month: month };
     }
 
+    if (parsed.type === 'forecast') {
+      const now = new Date();
+      let year = parsed.target_year ? parseInt(parsed.target_year, 10) : now.getFullYear();
+      let month = parsed.target_month !== undefined && parsed.target_month !== null ? parseInt(parsed.target_month, 10) : (now.getMonth() + 1) % 12;
+      return { type: 'forecast', target_year: year, target_month: month };
+    }
+
     if (parsed.type === 'set_budget') {
       return { type: 'set_budget', category: category, amount };
     }
@@ -226,7 +236,7 @@ function shouldTryAgent(text) {
   const t = text.trim();
   if (t.length < 2) return false;
   
-  const isReportOrBudget = /\b(?:report|summary|spend|spending|budget|who\s+owes|who\s+i|who\s+do\s+i|ask\s+|request\s+|remind\s+|help|menu|start|hi|hello)\b/i.test(t);
+  const isInformationIntent = /\b(?:report|summary|spend|spending|budget|predict|forecast|who\s+owes|who\s+i|who\s+do\s+i|ask\s+|request\s+|remind\s+|help|menu|start|hi|hello)\b/i.test(t);
   const hasNumber = /\d+/.test(t);
   const looksLikePaymentOrExpense = /\b(?:paid|pay|expense|spent|to\s+\w+|in\s+group|owes?\s+me|i\s+owe|owe\s+\d|for\s+\w+|at\s+a?\s*\w+)\b/i.test(t) || /^\d+\s+to\s+/i.test(t);
   

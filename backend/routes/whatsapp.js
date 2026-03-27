@@ -85,6 +85,7 @@ const {
   setPendingSplit,
   handleSplitReply
 } = require('../lib/splitTransaction/splitTransactionService.js');
+const { generateForecastMessage } = require('../lib/analytics/forecastService.js');
 const { amountForDb } = require('../lib/amountUtils.js');
 const { dateStringToNoonISTUTC, getTodayIST } = require('../lib/dateUtils.js');
 
@@ -687,6 +688,15 @@ const plugin = async (fastify, options) => {
                   }
                 } catch (err) {
                   await sendWhatsAppText(senderId, `❌ ${err.message}`);
+                }
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'forecast') {
+                try {
+                  const msg = await generateForecastMessage(sb, cmdUser.id, intent.target_year, intent.target_month);
+                  await sendWhatsAppText(senderId, msg);
+                } catch (err) {
+                  await sendWhatsAppText(senderId, `❌ Could not generate forecast: ${err.message}`);
                 }
                 return reply.send({ success: true });
               }
