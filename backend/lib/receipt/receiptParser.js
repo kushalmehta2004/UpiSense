@@ -55,7 +55,7 @@ async function parseReceiptImage(imageBuffer, mimeType = 'image/jpeg') {
   }
   try {
     const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemma-3-27b-it' });
     const prompt = `Look at this image (receipt, bill, or UPI/screen screenshot). Extract:
 1. Total amount paid (number only, in INR if in rupees, else convert to INR or use as number).
 2. Merchant or payee name (store name, app name, or person).

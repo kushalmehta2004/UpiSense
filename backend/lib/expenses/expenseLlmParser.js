@@ -27,7 +27,7 @@ async function parseExpenseWithLLM(text) {
   const ai = getGemini();
   if (!ai) return null;
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemma-3-27b-it';
   const model = ai.getGenerativeModel({ model: modelName });
 
   const prompt = `Parse this expense/split message into JSON. The user paid for something and is adding it to a group, possibly with custom split amounts.

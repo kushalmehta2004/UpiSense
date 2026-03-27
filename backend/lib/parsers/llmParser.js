@@ -29,7 +29,7 @@ async function parseWithLLM(text) {
       return null;
     }
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const modelName = process.env.GEMINI_MODEL || 'gemma-3-27b-it';
     const model = ai.getGenerativeModel({ model: modelName });
     
     const prompt = `Extract UPI transaction data from the following text. Return ONLY a valid JSON object with these exact fields:

@@ -41,7 +41,7 @@ async function parseWithUnifiedAgent(text) {
     return null;
   }
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemma-3-27b-it';
   const model = ai.getGenerativeModel({ model: modelName });
 
   const prompt = `You are a financial assistant. The user sends messages about payments, group expenses, or informal debt (IOUs). Your job is to interpret the message and output ONE structured JSON object that matches our schema.
