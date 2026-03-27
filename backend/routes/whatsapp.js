@@ -391,15 +391,10 @@ const plugin = async (fastify, options) => {
         const { data: u2 } = await sb.from('users').select('id, opted_out').eq('phone', v).limit(1);
         if (u2?.[0]) { cmdUser = u2[0]; break; }
       }
-      const isBudgetCmd = /^(?:set\s+)?budget\s+.+\s+[\d,]+\.?\d*$/i.test(text.trim());
-      const isReportCmd = /^(?:monthly\s+)?(?:report|summary)\s*\S*$/i.test(text.trim()) || /^(report|summary)$/i.test(text.trim());
-      const isGroupCmd = ENABLE_GROUPS && (/^(?:create|new)\s+group\s+.+$/i.test(text.trim()) || /^add\s+.+\s+to\s+.+$/i.test(text.trim()) || /^groups$/i.test(text.trim()));
-      const isExpenseCmd = ENABLE_GROUPS && (/^expense\s+\d+.+in\s+.+$/i.test(text.trim()) || /^balance\s+(?:in\s+)?.+$/i.test(text.trim()) || /^settle(?:\s+up)?\s+\d+.+$/i.test(text.trim()));
+      const isGroupCmd = ENABLE_GROUPS && (/^(?:create|new)\s+group\s+.+$/i.test(text.trim()) || /^add\s+.+\s+to\s+.+$/i.test(text.trim()) || /^groups$/i.test(text.trim()) || /^expense\s+\d+.+in\s+.+$/i.test(text.trim()) || /^balance\s+(?:in\s+)?.+$/i.test(text.trim()) || /^settle(?:\s+up)?\s+\d+.+$/i.test(text.trim()));
       const isFamilyCmd = ENABLE_FAMILY && (/^add\s+(?:to\s+)?family\s+\d+$/i.test(text.trim()) || /^add\s+\d+\s+to\s+family$/i.test(text.trim()) || /^family\s+summary$/i.test(text.trim()));
-      const isRequestCmd = /^request\s+[\d,.]+\s+from\s+\d+$/i.test(text.trim()) || /^remind\s+.+\s+about\s+[\d,.]+\s*$/i.test(text.trim());
-      const isHelpCmd = /^(help|menu|commands|start|what can you do|hi|hello)$/i.test(text.trim());
-      const isDebtListCmd = parseOwedToMeCommand(text) || parseIOweCommand(text);
-      if (!cmdUser && (isBudgetCmd || isReportCmd || isGroupCmd || isExpenseCmd || isFamilyCmd || isRequestCmd || isHelpCmd || isDebtListCmd)) {
+      const wouldTryAgent = shouldTryAgent(text);
+      if (!cmdUser && (wouldTryAgent || isGroupCmd || isFamilyCmd)) {
         const canonicalPhone = normalizeForWhatsApp(senderId);
         const { data: newU, error } = await sb.from('users').insert([{
           whatsapp_number: canonicalPhone,
@@ -504,10 +499,7 @@ const plugin = async (fastify, options) => {
           }
           return reply.send({ success: true });
         }
-        if (isHelpCmd) {
-          await sendWhatsAppText(senderId, getHelpMessage());
-          return reply.send({ success: true });
-        }
+
         const { data: pendingRecurring } = await sb.from('pending_recurring_suggestion').select('transaction_id').eq('user_id', cmdUser.id).maybeSingle();
         if (pendingRecurring && (trimmedLower === 'yes' || trimmedLower === 'y')) {
           const ok = await handleRecurringYes(sb, cmdUser.id);
@@ -555,49 +547,7 @@ const plugin = async (fastify, options) => {
             return reply.send({ success: true });
           }
         }
-        const budgetParsed = parseBudgetCommand(text);
-        if (budgetParsed) {
-          try {
-            await setBudget(sb, cmdUser.id, budgetParsed.category, budgetParsed.amount);
-            await sendWhatsAppText(senderId, `✅ Budget set: *${budgetParsed.category}* ₹${budgetParsed.amount.toLocaleString('en-IN')}/month. We'll alert you when you approach or exceed it.`);
-          } catch (err) {
-            console.error('Budget set error:', err.message);
-            await sendWhatsAppText(senderId, `❌ Could not set budget: ${err.message}`);
-          }
-          return reply.send({ success: true });
-        }
-        const reportOpt = parseReportCommand(text);
-        if (reportOpt) {
-          try {
-            const { byCategory, total, start, end } = await getSpendingByCategory(sb, cmdUser.id, reportOpt);
-            const msg = formatReportMessage({ byCategory, total, start, end }, reportOpt.type);
-            if (cmdUser.opted_out !== true) await sendWhatsAppText(senderId, (msg || 'No spending in this period.') + STOP_FOOTER);
-          } catch (err) {
-            console.error('Report error:', err.message);
-            await sendWhatsAppText(senderId, `❌ Could not generate report: ${err.message}`);
-          }
-          return reply.send({ success: true });
-        }
-        if (parseOwedToMeCommand(text)) {
-          try {
-            const entries = await getOwedToMe(sb, cmdUser.id);
-            await sendWhatsAppText(senderId, formatOwedToMeMessage(entries));
-          } catch (err) {
-            console.error('Owed to me list error:', err.message);
-            await sendWhatsAppText(senderId, `❌ ${err.message}`);
-          }
-          return reply.send({ success: true });
-        }
-        if (parseIOweCommand(text)) {
-          try {
-            const entries = await getIOwe(sb, cmdUser.id);
-            await sendWhatsAppText(senderId, formatIOweMessage(entries));
-          } catch (err) {
-            console.error('I owe list error:', err.message);
-            await sendWhatsAppText(senderId, `❌ ${err.message}`);
-          }
-          return reply.send({ success: true });
-        }
+
         const groupName = parseCreateGroupCommand(text);
         if (groupName) {
           if (!ENABLE_GROUPS) {
@@ -676,6 +626,68 @@ const plugin = async (fastify, options) => {
               if (intent.type === 'i_paid_back') {
                 await addDebtEntry(sb, cmdUser.id, 'i_owe', intent.person_name, -intent.amount);
                 await sendWhatsAppText(senderId, `✅ Recorded: You paid back *${intent.person_name}* ₹${intent.amount.toLocaleString('en-IN')}. Your balance with them has been updated. Reply _who I owe_ to see your list.`);
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'report') {
+                try {
+                  const rMonth = intent.report_month !== null && intent.report_month !== undefined ? intent.report_month : null;
+                  const { byCategory, total, start, end } = await getSpendingByCategory(sb, cmdUser.id, {
+                    type: rMonth !== null ? 'month' : 'year',
+                    year: intent.report_year,
+                    month: rMonth
+                  });
+                  const msg = formatReportMessage({ byCategory, total, start, end }, rMonth !== null ? 'month' : 'year');
+                  if (cmdUser.opted_out !== true) await sendWhatsAppText(senderId, (msg || 'No spending in this period.') + STOP_FOOTER);
+                } catch (err) {
+                  await sendWhatsAppText(senderId, `❌ Could not generate report: ${err.message}`);
+                }
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'set_budget') {
+                try {
+                  await setBudget(sb, cmdUser.id, intent.category, intent.amount);
+                  await sendWhatsAppText(senderId, `✅ Budget set: *${intent.category}* ₹${intent.amount.toLocaleString('en-IN')}/month. We'll alert you when you approach or exceed it.`);
+                } catch (err) {
+                  await sendWhatsAppText(senderId, `❌ Could not set budget: ${err.message}`);
+                }
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'list_owed_to_me') {
+                try {
+                  const entries = await getOwedToMe(sb, cmdUser.id);
+                  await sendWhatsAppText(senderId, formatOwedToMeMessage(entries));
+                } catch (err) {
+                  await sendWhatsAppText(senderId, `❌ ${err.message}`);
+                }
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'list_i_owe') {
+                try {
+                  const entries = await getIOwe(sb, cmdUser.id);
+                  await sendWhatsAppText(senderId, formatIOweMessage(entries));
+                } catch (err) {
+                  await sendWhatsAppText(senderId, `❌ ${err.message}`);
+                }
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'help') {
+                await sendWhatsAppText(senderId, getHelpMessage());
+                return reply.send({ success: true });
+              }
+              if (intent.type === 'request_money') {
+                try {
+                  const target = await findUserByPhone(sb, intent.person_name);
+                  const amountStr = `₹${intent.amount.toLocaleString('en-IN')}`;
+                  if (target && target.whatsapp_number) {
+                    const requesterLabel = cmdUser.name || cmdUser.phone || 'Someone';
+                    await sendWhatsAppText(target.whatsapp_number, `💬 *UpiSense:* ${requesterLabel} is reminding you: You owe them ${amountStr}.`);
+                    await sendWhatsAppText(senderId, `✅ Reminder sent to ${target.name || target.whatsapp_number}.`);
+                  } else {
+                    await sendWhatsAppText(senderId, `They're not on UpiSense yet. Forward this to them:\n\n_"You owe me ${amountStr}."_`);
+                  }
+                } catch (err) {
+                  await sendWhatsAppText(senderId, `❌ ${err.message}`);
+                }
                 return reply.send({ success: true });
               }
               if (intent.type === 'group_expense') {
@@ -852,24 +864,7 @@ const plugin = async (fastify, options) => {
           }
           return reply.send({ success: true });
         }
-        const requestMoney = parseRequestMoneyCommand(text);
-        if (requestMoney) {
-          try {
-            const requester = await sb.from('users').select('name, phone').eq('id', cmdUser.id).single().then(r => r.data);
-            const requesterLabel = requester?.name || requester?.phone || 'Someone';
-            const target = await findUserByPhone(sb, requestMoney.phone);
-            const amountStr = `₹${requestMoney.amount.toLocaleString('en-IN')}`;
-            if (target?.whatsapp_number) {
-              await sendWhatsAppText(target.whatsapp_number, `💬 *UpiSense:* ${requesterLabel} is reminding you: You owe them ${amountStr}.`);
-              await sendWhatsAppText(senderId, `✅ Reminder sent to ${target.name || target.whatsapp_number}.`);
-            } else {
-              await sendWhatsAppText(senderId, `They're not on UpiSense yet. Forward this to them:\n\n_"You owe me ${amountStr}."_`);
-            }
-          } catch (err) {
-            await sendWhatsAppText(senderId, `❌ ${err.message}`);
-          }
-          return reply.send({ success: true });
-        }
+
 
       }
 

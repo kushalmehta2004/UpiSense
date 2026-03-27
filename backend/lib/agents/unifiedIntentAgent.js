@@ -47,8 +47,8 @@ async function parseWithUnifiedAgent(text) {
   const prompt = `You are a financial assistant. The user sends messages about payments, group expenses, or informal debt (IOUs). Your job is to interpret the message and output ONE structured JSON object that matches our schema.
 
 Output schema (use exactly these field names):
-- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "paid_back" | "i_paid_back" | "none"
-- amount: number (INR) – required for all except type "none"
+- type: one of "transaction" | "group_expense" | "owed_to_me" | "i_owe" | "paid_back" | "i_paid_back" | "report" | "set_budget" | "list_owed_to_me" | "list_i_owe" | "request_money" | "help" | "none"
+- amount: number (INR) – required for all except type "none", "report", "list_owed_to_me", "list_i_owe", "help"
 - For type "transaction": merchant_name (required – who/where; if unknown use "none" type), category. Always use "Food & Dining" for restaurant, cafe, dinner, food, eatery, bar, pub. Use "Transport" for cab, auto, uber, ola. Use "Health" for pharmacy, medicine.
 - IMPORTANT: "paid back" and "returned" are DEBT SETTLEMENTS, not expenses. Use type "paid_back" when someone who OWES the user pays them back (e.g. "Kushal paid back 1230", "Ravi returned my 500", "Priya paid me back 200"). Use type "i_paid_back" when the user pays back someone they owe (e.g. "I paid back Samkit 300", "I returned 500 to Raj"). Do NOT use type "transaction" for these – they are not transport or any expense category.
 - If the user says what the payment was for (e.g. "for dinner", "for groceries", "for petrol"), infer the category from that and set "is_p2p": false so we do NOT ask what it was for. E.g. "I paid Rachit 200 for dinner" → category "Food & Dining", merchant_name "Rachit", is_p2p false. "Paid John 500 for groceries" → category "Groceries", is_p2p false.
@@ -59,6 +59,12 @@ Output schema (use exactly these field names):
 - For type "i_owe": person_name (who the user owes). E.g. "I owe Raj 500" → person_name "Raj", amount 500. "I owe someone 500" → person_name "Someone".
 - For type "paid_back": person_name (who paid the user back – someone who owed them). E.g. "Kushal paid back 1230" → person_name "Kushal", amount 1230. "Ravi returned my 500" → person_name "Ravi", amount 500. "Priya paid me back" with amount → person_name "Priya", amount.
 - For type "i_paid_back": person_name (who the user paid back – someone they owed). E.g. "I paid back Samkit 300" → person_name "Samkit", amount 300. "I returned 500 to Raj" → person_name "Raj", amount 500.
+- For type "report": report_month (number 0-11, 0 is Jan) based on user's mention of the month. If no year mentioned, assume the current year for report_year. If only year is mentioned, report_month is null. Example: "feb 2026" -> report_month: 1, report_year: 2026.
+- For type "set_budget": category (e.g., Food & Dining, Groceries, Travel), amount.
+- For type "list_owed_to_me": no extra fields. Used for questions like "who owes me?"
+- For type "list_i_owe": no extra fields. Used for questions like "who do I owe?"
+- For type "request_money": person_name (the name/number to ask), amount.
+- For type "help": no extra fields. Used for questions like "what can you do?" or "hi".
 - expense_date (optional): use ONLY for type "transaction" or "group_expense". When the user mentions a date for the expense, set this to YYYY-MM-DD. Parse: "on 23rd February 2026", "on 23 Feb 2026", "23/02/2026", "yesterday", "day before yesterday", "last Monday", "on 20th" (current month). Use today's date (in IST) for "today" or when no date is mentioned. Today's date (IST) is: {{TODAY_IST}}. Do NOT include expense_date if the message has no date; we will use today. When you include expense_date, use exactly YYYY-MM-DD.
 
 Examples:
@@ -80,6 +86,13 @@ Examples:
 - "Paid for dinner on 23rd February 2026 500 at restaurant" → {"type":"transaction","amount":500,"merchant_name":"restaurant","category":"Food & Dining","expense_date":"2026-02-23"}
 - "Paid for dinner yesterday 300 to cafe" → {"type":"transaction","amount":300,"merchant_name":"cafe","category":"Food & Dining","expense_date":"<yesterday in YYYY-MM-DD>"}
 - "Paid for dinner day before yesterday 400 at cafe" → {"type":"transaction","amount":400,"merchant_name":"cafe","category":"Food & Dining","expense_date":"<day before yesterday YYYY-MM-DD>"}
+- "what did i spend this month" → {"type":"report","report_year":2026,"report_month":<current_month>}
+- "monthly report for feb 2026" → {"type":"report","report_month":1,"report_year":2026}
+- "set my food budget to 5000" → {"type":"set_budget","category":"Food & Dining","amount":5000}
+- "who owes me money?" → {"type":"list_owed_to_me"}
+- "who do i owe money to?" → {"type":"list_i_owe"}
+- "ask rahul for 500" → {"type":"request_money","person_name":"rahul","amount":500}
+- "what can you do?" → {"type":"help"}
 
 If the message is clearly NOT a payment, group expense, or IOU (e.g. "hello", "500" alone), return exactly: {"type":"none"}
 Do NOT return type "transaction" with merchant_name "Unknown" or empty – return "none" instead so we can ask who they paid.
@@ -105,9 +118,7 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
 
     if (parsed.type === 'none') return null;
 
-    const amount = parseFloat(parsed.amount);
-    if (isNaN(amount) || amount <= 0) return null;
-
+    const amount = parsed.amount !== undefined ? parseFloat(parsed.amount) : 0;
     const category = parsed.category && CATEGORIES.includes(parsed.category) ? parsed.category : 'Other';
 
     if (parsed.type === 'transaction') {
@@ -178,6 +189,26 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
       return { type: 'i_paid_back', person_name, amount };
     }
 
+    if (parsed.type === 'report') {
+      const now = new Date();
+      let year = parsed.report_year ? parseInt(parsed.report_year, 10) : now.getFullYear();
+      let month = parsed.report_month !== undefined && parsed.report_month !== null ? parseInt(parsed.report_month, 10) : now.getMonth();
+      return { type: 'report', report_year: year, report_month: month };
+    }
+
+    if (parsed.type === 'set_budget') {
+      return { type: 'set_budget', category: category, amount };
+    }
+
+    if (parsed.type === 'list_owed_to_me') return { type: 'list_owed_to_me' };
+    if (parsed.type === 'list_i_owe') return { type: 'list_i_owe' };
+    if (parsed.type === 'help') return { type: 'help' };
+
+    if (parsed.type === 'request_money') {
+      const person_name = (parsed.person_name || 'Someone').trim();
+      return { type: 'request_money', person_name, amount };
+    }
+
     return null;
   } catch (err) {
     console.error('unifiedIntentAgent error:', err.message);
@@ -193,11 +224,13 @@ Return ONLY valid JSON. No markdown, no code block, no explanation.`;
 function shouldTryAgent(text) {
   if (!text || typeof text !== 'string') return false;
   const t = text.trim();
-  if (t.length < 3) return false;
-  // Contains something that could be an amount (digit) and payment/expense cues
+  if (t.length < 2) return false;
+  
+  const isReportOrBudget = /\b(?:report|summary|spend|spending|budget|who\s+owes|who\s+i|who\s+do\s+i|ask\s+|request\s+|remind\s+|help|menu|start|hi|hello)\b/i.test(t);
   const hasNumber = /\d+/.test(t);
   const looksLikePaymentOrExpense = /\b(?:paid|pay|expense|spent|to\s+\w+|in\s+group|owes?\s+me|i\s+owe|owe\s+\d|for\s+\w+|at\s+a?\s*\w+)\b/i.test(t) || /^\d+\s+to\s+/i.test(t);
-  return hasNumber && (looksLikePaymentOrExpense || t.split(/\s+/).length >= 3);
+  
+  return isReportOrBudget || (hasNumber && (looksLikePaymentOrExpense || t.split(/\s+/).length >= 3));
 }
 
 module.exports = { parseWithUnifiedAgent, shouldTryAgent };
