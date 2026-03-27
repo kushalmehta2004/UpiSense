@@ -96,7 +96,8 @@ Instructions:
 Format the output nicely for WhatsApp, using bold text (*text*) and standard emojis. Keep it concise (max 150 words). Do NOT use markdown headers (#).`;
 
   try {
-    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const model = ai.getGenerativeModel({ model: modelName });
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
     
