@@ -240,7 +240,7 @@ function shouldTryAgent(text) {
   const hasNumber = /\d+/.test(t);
   const looksLikePaymentOrExpense = /\b(?:paid|pay|expense|spent|to\s+\w+|in\s+group|owes?\s+me|i\s+owe|owe\s+\d|for\s+\w+|at\s+a?\s*\w+)\b/i.test(t) || /^\d+\s+to\s+/i.test(t);
   
-  return isReportOrBudget || (hasNumber && (looksLikePaymentOrExpense || t.split(/\s+/).length >= 3));
+  return isInformationIntent || (hasNumber && (looksLikePaymentOrExpense || t.split(/\s+/).length >= 3));
 }
 
 module.exports = { parseWithUnifiedAgent, shouldTryAgent };
