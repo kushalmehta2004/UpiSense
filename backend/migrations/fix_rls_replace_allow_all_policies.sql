@@ -1,6 +1,9 @@
 -- Replace permissive "Allow all" RLS policies with user-scoped or server-only policies.
 -- Fixes Supabase linter: "RLS Policy Always True" (0024_permissive_rls_policy).
 -- Backend uses JWT (auth.uid()) for API access; these policies restrict rows by user.
+--
+-- APPLY: Supabase Dashboard → SQL Editor → paste this file → Run (backup project first).
+-- Required before public launch if linter still flags policies like "Allow all budgets for server".
 
 -- ========== budgets (user_id) ==========
 DROP POLICY IF EXISTS "Allow all budgets for server" ON public.budgets;
@@ -83,6 +86,11 @@ CREATE POLICY "Users can manage their own pending_recurring_suggestion" ON publi
 DROP POLICY IF EXISTS "Allow all pending_split_transaction" ON public.pending_split_transaction;
 CREATE POLICY "Users can manage their own pending_split_transaction" ON public.pending_split_transaction
   FOR ALL USING (auth.uid()::text = user_id::text) WITH CHECK (auth.uid()::text = user_id::text);
+
+-- ========== pending_category_confirmation (user_id PK → users) ==========
+DROP POLICY IF EXISTS "Allow all pending_category_confirmation for server" ON public.pending_category_confirmation;
+CREATE POLICY "Users can manage their own pending_category_confirmation" ON public.pending_category_confirmation
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- ========== parse_failures (no user_id — server-only) ==========
 -- Table has no user_id; only backend should write/read (error logging, admin summary).

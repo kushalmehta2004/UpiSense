@@ -21,7 +21,7 @@ function ensureLogDir() {
 }
 
 /**
- * Log a parsing failure. Raw message text is never persisted (Privacy: deleted within 60s promise).
+ * Log a parsing failure. Raw message text is never persisted to DB (only error + meta).
  * Optional supabase: insert error + meta only (no snippet).
  */
 async function logParseFailure(textSnippet, errorMessage, meta = {}, supabase = null) {

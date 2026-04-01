@@ -31,7 +31,7 @@ export function Terms() {
             Terms of Service
           </h1>
           <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
-            Version 1.0 · Last updated: 24 February 2026. By using UpiSense you agree to these terms.
+            Version 1.0 · Last updated: 1 April 2026. By using UpiSense you agree to these terms.
           </p>
           <p className="text-sm mb-12" style={{ color: colors.textSecondary }}>
             These Terms constitute an agreement between you and Kushal Mehta, operating as UpiSense, located at Mumbai, India.

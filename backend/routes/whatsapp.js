@@ -136,6 +136,27 @@ function safeWebhookSummary(body) {
   return out;
 }
 
+/** Local/dev tooling only — disabled on Vercel/production unless ALLOW_DEBUG_ROUTES=true */
+function isDebugRoutesEnabled() {
+  if (process.env.ALLOW_DEBUG_ROUTES === 'true') return true;
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') return false;
+  return true;
+}
+
+/** Avoid logging UPI/bank text to Vercel/host logs (privacy, incident response). */
+function logInboundMessageMeta(senderId, messageId, text, timestamp) {
+  const len = text ? String(text).length : 0;
+  console.log(`\n✉️  Message received:`);
+  console.log(`   From: ${senderId}`);
+  console.log(`   ID: ${messageId}`);
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    console.log(`   Text: [redacted, ${len} chars]`);
+  } else {
+    console.log(`   Text: ${text}`);
+  }
+  console.log(`   Timestamp: ${new Date(timestamp * 1000).toISOString()}`);
+}
+
 const plugin = async (fastify, options) => {
   // Seed categories on plugin load (idempotent)
   fastify.addHook('onReady', async () => {
@@ -296,11 +317,7 @@ const plugin = async (fastify, options) => {
         return reply.send({ success: true });
       }
 
-      console.log(`\n✉️  Message received:`);
-      console.log(`   From: ${senderId}`);
-      console.log(`   ID: ${messageId}`);
-      console.log(`   Text: ${text}`);
-      console.log(`   Timestamp: ${new Date(timestamp * 1000).toISOString()}`);
+      logInboundMessageMeta(senderId, messageId, text, timestamp);
 
       const variants = getPhoneVariants(senderId);
 
@@ -1084,6 +1101,7 @@ const plugin = async (fastify, options) => {
     }
   });
 
+  if (isDebugRoutesEnabled()) {
   // Test unified intent agent (GET so you can curl easily)
   fastify.get('/api/test-intent', async (request, reply) => {
     try {
@@ -1175,23 +1193,6 @@ const plugin = async (fastify, options) => {
     try {
       const result = await seedCategories(sb);
       return reply.send({ success: true, ...result });
-    } catch (error) {
-      return reply.code(500).send({ error: error.message });
-    }
-  });
-
-  // List categories (Task 4 - system defaults + DB)
-  fastify.get('/api/categories', async (request, reply) => {
-    try {
-      const { data, error } = await sb
-        .from('categories')
-        .select('id, name, icon, color, is_default')
-        .is('user_id', null)
-        .order('name');
-      if (error) throw error;
-      // If empty, return defaults (before seed runs)
-      const categories = (data && data.length > 0) ? data : DEFAULT_CATEGORIES.map(c => ({ ...c, id: null, is_default: true }));
-      return reply.send({ success: true, categories });
     } catch (error) {
       return reply.code(500).send({ error: error.message });
     }
@@ -1297,6 +1298,24 @@ const plugin = async (fastify, options) => {
     console.log(`📖 Marking message ${messageId} as read`);
     // TODO: Implement in Week 4
     return reply.send({ success: true });
+  });
+  }
+
+  // List categories (Task 4 - system defaults + DB) — production frontend uses this
+  fastify.get('/api/categories', async (request, reply) => {
+    try {
+      const { data, error } = await sb
+        .from('categories')
+        .select('id, name, icon, color, is_default')
+        .is('user_id', null)
+        .order('name');
+      if (error) throw error;
+      // If empty, return defaults (before seed runs)
+      const categories = (data && data.length > 0) ? data : DEFAULT_CATEGORIES.map(c => ({ ...c, id: null, is_default: true }));
+      return reply.send({ success: true, categories });
+    } catch (error) {
+      return reply.code(500).send({ error: error.message });
+    }
   });
 };
 

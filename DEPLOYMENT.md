@@ -87,6 +87,8 @@ The backend uses `cors()` with default settings (allows all origins). If you add
 - [ ] Meta webhook URL updated if backend URL changed
 - [ ] Add your number (and test numbers) as WhatsApp test recipients in Meta
 - [ ] Test: login, send WhatsApp message, see transaction on dashboard
+- [ ] **Production safety:** Debug HTTP routes (`/api/parse`, `/api/test-intent`, `/api/admin/error-summary`, etc.) are **off** on Vercel / `NODE_ENV=production`. To enable them locally or on a staging deploy, set `ALLOW_DEBUG_ROUTES=true`. In production, inbound WhatsApp message **text is not logged** to Vercel logs (only length); keep it that way for privacy.
+- [ ] **Supabase RLS:** If the Database Linter warns about `rls_policy_always_true` on tables like `budgets`, `debt_entries`, `parse_failures`, etc., run the SQL in `backend/migrations/fix_rls_replace_allow_all_policies.sql` in the Supabase SQL Editor (after a backup). That replaces overly permissive `USING (true)` policies with user-scoped or server-only policies aligned with how the app uses `auth.uid()` and the service role.
 
 ---
 

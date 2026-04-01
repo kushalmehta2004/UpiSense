@@ -87,7 +87,7 @@ export function Footer() {
               <li>Built in India 🇮🇳</li>
               <li>Your data stays in India</li>
               <li>Compliant with DPDP Act 2023</li>
-              <li>256-bit encryption</li>
+              <li>HTTPS and encrypted database hosting</li>
             </ul>
           </div>
         </div>
