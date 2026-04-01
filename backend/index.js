@@ -18,7 +18,8 @@ function getApp() {
   return appPromise;
 }
 
-const CORS_ORIGIN = 'https://upi-sense.vercel.app';
+// Production: set CORS_ORIGIN in Vercel to your frontend origin, e.g. https://upisense.app (no trailing slash)
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://upi-sense.vercel.app';
 
 async function handler(req, res) {
   // ✅ Set CORS headers on every response

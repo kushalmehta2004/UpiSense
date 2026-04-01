@@ -20,6 +20,7 @@ Your backend is already set up for Vercel. Ensure it's deployed with all env var
 | `META_PHONE_ID` | Yes | WhatsApp phone number ID |
 | `META_BUSINESS_ACCOUNT_ID` | Yes | Meta Business Account ID |
 | `GEMINI_API_KEY` | Yes | Google AI Studio key |
+| `CORS_ORIGIN` | Yes (custom domain) | Frontend origin only, e.g. `https://upisense.app` — must match the site users open in the browser (no trailing slash) |
 
 ### Deploy backend
 
