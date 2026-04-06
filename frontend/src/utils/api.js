@@ -74,6 +74,10 @@ export const categories = {
   list: () => api.get('/api/categories'),
 };
 
+export const waitlist = {
+  signup: (email) => api.post('/api/waitlist', { email }),
+};
+
 export const groups = {
   list: () => api.get('/api/groups'),
   get: (id) => api.get(`/api/groups/${id}`),

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import { WaitlistModal } from './WaitlistModal';
 
 const MINT = '#00D4A0';
 const DARK = '#0A0F1E';
@@ -11,6 +12,7 @@ export function LandingNav() {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [logoSrc, setLogoSrc] = useState('/logo.png');
 
   const handleLogoClick = (e) => {
@@ -43,13 +45,14 @@ export function LandingNav() {
         <nav className="hidden md:flex items-center gap-8">
           <a href="#how-it-works" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>How it works</a>
           <Link to="/pricing" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>Pricing</Link>
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => setWaitlistOpen(true)}
             className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(0,212,160,0.4)]"
             style={{ background: MINT, color: DARK }}
           >
             Get early access →
-          </Link>
+          </button>
         </nav>
         <button
           type="button"
@@ -70,9 +73,17 @@ export function LandingNav() {
         >
           <a href="#how-it-works" onClick={() => setMenuOpen(false)} className="py-3 font-medium" style={{ color: TEXT }}>How it works</a>
           <Link to="/pricing" onClick={() => setMenuOpen(false)} className="py-3 font-medium block" style={{ color: TEXT }}>Pricing</Link>
-          <Link to="/login" onClick={() => setMenuOpen(false)} className="py-3 font-semibold rounded-full text-center" style={{ background: MINT, color: DARK }}>Get early access →</Link>
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); setWaitlistOpen(true); }}
+            className="py-3 font-semibold rounded-full text-center"
+            style={{ background: MINT, color: DARK }}
+          >
+            Get early access →
+          </button>
         </motion.div>
       )}
+      <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
     </header>
   );
 }

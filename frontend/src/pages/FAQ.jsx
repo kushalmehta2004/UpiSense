@@ -31,7 +31,7 @@ const faqs = [
   },
   {
     q: 'How do I get early access or sign up?',
-    a: 'Click "Get early access" on the homepage or go to Login. Sign up with your phone number; you will receive a verification link. Once verified, connect WhatsApp to UpiSense and you can start forwarding transactions.',
+    a: 'Click "Get early access" on the homepage to join the waitlist with your email. We’ll invite you when onboarding opens.',
   },
 ];
 

@@ -35,6 +35,7 @@ async function buildApp() {
   const authRoutes = require('./routes/auth.js');
   const transactionsRoutes = require('./routes/transactions.js');
   const featuresRoutes = require('./routes/features.js');
+  const waitlistRoutes = require('./routes/waitlist.js');
 
   app.get('/', async (request, reply) => {
     return reply.send({
@@ -53,6 +54,7 @@ async function buildApp() {
   await app.register(authRoutes);
   await app.register(transactionsRoutes);
   await app.register(featuresRoutes);
+  await app.register(waitlistRoutes);
 
   return app;
 }
