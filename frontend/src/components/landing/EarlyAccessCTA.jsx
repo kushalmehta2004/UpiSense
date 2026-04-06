@@ -59,6 +59,7 @@ export function EarlyAccessCTA() {
           <Lock className="w-4 h-4" />
           We don&apos;t store your raw messages. Read our privacy policy.
         </motion.p>
+        
         <p className="text-sm" style={{ color: 'rgba(10,15,30,0.7)' }}>
           Join 340 people who already know where their money goes.
         </p>

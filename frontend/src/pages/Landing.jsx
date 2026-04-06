@@ -9,7 +9,6 @@ import { JustSayWhatHappened } from '../components/landing/JustSayWhatHappened';
 import { DashboardPreview } from '../components/landing/DashboardPreview';
 import { WhatsAppMagic } from '../components/landing/WhatsAppMagic';
 import { Categories } from '../components/landing/Categories';
-import { SocialProof } from '../components/landing/SocialProof';
 import { EarlyAccessCTA } from '../components/landing/EarlyAccessCTA';
 import { Footer } from '../components/landing/Footer';
 
@@ -45,7 +44,6 @@ export function Landing() {
         <DashboardPreview />
         <WhatsAppMagic />
         <Categories />
-        <SocialProof />
         <EarlyAccessCTA />
         <Footer />
       </main>

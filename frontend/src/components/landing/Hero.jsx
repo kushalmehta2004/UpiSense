@@ -7,6 +7,8 @@ const MINT = '#00D4A0';
 const TEXT = '#F9FAFB';
 const MUTED = '#9CA3AF';
 
+void motion;
+
 const TAB_UPI = [
   { who: 'user', text: 'Forwarded: Paid ₹450 to Swiggy via GPay' },
   { who: 'bot', text: 'Got it! 🍕\n₹450 · Swiggy · Food Delivery\nlogged to your dashboard' },
@@ -141,11 +143,17 @@ export function Hero() {
             className="pt-4 text-sm"
             style={{ color: MUTED }}
           >
-            <p className="mb-2">₹2.4 crore tracked · 8,200+ transactions · Works on GPay, PhonePe, Paytm, BHIM</p>
+            <p className="mb-2">Works on GPay, PhonePe, Paytm, BHIM</p>
             <div className="flex items-center gap-2">
               <div className="flex -space-x-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-[#0A0F1E] bg-slate-500" title="User" />
+                {['/avatars/avatar-1.svg', '/avatars/avatar-2.svg', '/avatars/avatar-3.svg', '/avatars/avatar-4.svg', '/avatars/avatar-5.svg'].map((src, i) => (
+                  <img
+                    key={src}
+                    src={src}
+                    alt={`Early user ${i + 1}`}
+                    className="w-8 h-8 rounded-full border-2 border-[#0A0F1E] object-cover"
+                    loading="lazy"
+                  />
                 ))}
               </div>
               <span>Join 340 early users</span>
