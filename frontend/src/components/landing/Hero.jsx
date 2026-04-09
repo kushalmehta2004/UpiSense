@@ -134,7 +134,7 @@ export function Hero({ onOpenWaitlist }) {
               className="inline-flex items-center justify-center h-14 px-8 rounded-full text-base font-semibold transition-all hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(0,212,160,0.4)]"
               style={{ background: MINT, color: '#0A0F1E' }}
             >
-              Start tracking free →
+              Start tracking for free →
             </button>
             <a
               href="#how-it-works"

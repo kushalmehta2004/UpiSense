@@ -57,7 +57,7 @@ export function EarlyAccessCTA({ onOpenWaitlist }) {
             onClick={handleGetStartedClick}
             className="inline-flex items-center justify-center px-8 py-4 rounded-full font-semibold bg-[#0A0F1E] text-white hover:bg-[#111827] transition-colors shadow-lg"
           >
-            Get started free →
+            Get started for free →
           </button>
         </motion.div>
         <motion.p
