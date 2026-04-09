@@ -2,18 +2,20 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
-import { WaitlistModal } from './WaitlistModal';
 
 const MINT = '#00D4A0';
 const DARK = '#0A0F1E';
 const TEXT = '#F9FAFB';
 
-export function LandingNav() {
+export function LandingNav({ onOpenWaitlist }) {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [logoSrc, setLogoSrc] = useState('/logo.png');
+
+  const openWaitlist = () => {
+    onOpenWaitlist?.();
+  };
 
   const handleLogoClick = (e) => {
     if (location.pathname === '/') {
@@ -47,7 +49,7 @@ export function LandingNav() {
           <Link to="/pricing" className="text-sm font-medium transition-colors hover:opacity-90" style={{ color: TEXT }}>Pricing</Link>
           <button
             type="button"
-            onClick={() => setWaitlistOpen(true)}
+            onClick={openWaitlist}
             className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(0,212,160,0.4)]"
             style={{ background: MINT, color: DARK }}
           >
@@ -75,7 +77,7 @@ export function LandingNav() {
           <Link to="/pricing" onClick={() => setMenuOpen(false)} className="py-3 font-medium block" style={{ color: TEXT }}>Pricing</Link>
           <button
             type="button"
-            onClick={() => { setMenuOpen(false); setWaitlistOpen(true); }}
+            onClick={() => { setMenuOpen(false); openWaitlist(); }}
             className="py-3 font-semibold rounded-full text-center"
             style={{ background: MINT, color: DARK }}
           >
@@ -83,7 +85,6 @@ export function LandingNav() {
           </button>
         </motion.div>
       )}
-      <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
     </header>
   );
 }

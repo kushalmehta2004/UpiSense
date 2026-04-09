@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 
 const MINT = '#00D4A0';
@@ -42,8 +42,9 @@ const TABS = [
   { id: 'iou', label: 'Track IOUs', lines: TAB_IOU },
 ];
 
-export function Hero() {
+export function Hero({ onOpenWaitlist }) {
   const [activeTab, setActiveTab] = useState(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const t = setInterval(() => setActiveTab((a) => (a + 1) % TABS.length), 3000);
@@ -51,6 +52,13 @@ export function Hero() {
   }, []);
 
   const current = TABS[activeTab];
+  const handleStartTrackingClick = () => {
+    if (onOpenWaitlist) {
+      onOpenWaitlist();
+      return;
+    }
+    navigate('/login');
+  };
 
   return (
     <section className="relative min-h-screen flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-16 px-4 sm:px-6 pt-24 pb-16 overflow-hidden" style={{ background: '#0A0F1E' }}>
@@ -120,13 +128,14 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-wrap gap-4"
           >
-            <Link
-              to="/login"
+            <button
+              type="button"
+              onClick={handleStartTrackingClick}
               className="inline-flex items-center justify-center h-14 px-8 rounded-full text-base font-semibold transition-all hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(0,212,160,0.4)]"
               style={{ background: MINT, color: '#0A0F1E' }}
             >
               Start tracking free →
-            </Link>
+            </button>
             <a
               href="#how-it-works"
               className="inline-flex items-center gap-2 h-14 px-6 rounded-full border border-white/20 text-base font-medium transition-colors hover:bg-white/5"

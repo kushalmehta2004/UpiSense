@@ -1,11 +1,21 @@
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 
 const MINT = '#00D4A0';
 const DARK = '#0A0F1E';
 
-export function EarlyAccessCTA() {
+export function EarlyAccessCTA({ onOpenWaitlist }) {
+  const navigate = useNavigate();
+
+  const handleGetStartedClick = () => {
+    if (onOpenWaitlist) {
+      onOpenWaitlist();
+      return;
+    }
+    navigate('/login');
+  };
+
   return (
     <section
       id="pricing"
@@ -42,12 +52,13 @@ export function EarlyAccessCTA() {
             placeholder="Enter your WhatsApp number"
             className="flex-1 min-w-0 px-5 py-4 rounded-full border-2 border-[#0A0F1E]/20 bg-white/90 text-[#0A0F1E] placeholder:text-[#0A0F1E]/60 font-medium outline-none focus:border-[#0A0F1E]/50"
           />
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={handleGetStartedClick}
             className="inline-flex items-center justify-center px-8 py-4 rounded-full font-semibold bg-[#0A0F1E] text-white hover:bg-[#111827] transition-colors shadow-lg"
           >
             Get started free →
-          </Link>
+          </button>
         </motion.div>
         <motion.p
           initial={{ opacity: 0 }}
